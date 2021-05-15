@@ -36,7 +36,8 @@ func extractStep(v reflect.Value, tags []string, x *[]string) error {
 		switch srcfield.Type.Kind() {
 		case reflect.Struct, reflect.Ptr:
 			if err := extractStep(v.Field(i), tags, x); err != nil {
-				return err
+				//TODO: return recursive fields error without breaking higher levels
+				_ = err
 			}
 		}
 	}

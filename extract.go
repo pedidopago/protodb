@@ -15,7 +15,7 @@ func extractStep(v reflect.Value, tags []string, x *[]string) error {
 	kind := v.Kind()
 	switch kind {
 	case reflect.Ptr:
-		return extractStep(reflect.ValueOf(v).Elem(), tags, x)
+		return extractStep(v.Elem(), tags, x)
 	case reflect.Struct: //, reflect.Map:
 		// okay
 	default:

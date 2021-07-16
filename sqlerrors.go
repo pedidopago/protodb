@@ -15,6 +15,17 @@ func QueryErr(query string, err error) error {
 	}
 }
 
+// IsQueryError tests if an error is a *QueryError
+func IsQueryError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if _, ok := err.(*QueryError); ok {
+		return true
+	}
+	return false
+}
+
 type NotFoundError struct {
 	Name string
 }

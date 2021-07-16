@@ -8,6 +8,13 @@ type QueryError struct {
 func (e *QueryError) Error() string { return e.Query + ": " + e.Err.Error() }
 func (e *QueryError) Unwrap() error { return e.Err }
 
+func QueryErr(query string, err error) error {
+	return &QueryError{
+		Query: query,
+		Err:   err,
+	}
+}
+
 type NotFoundError struct {
 	Name string
 }

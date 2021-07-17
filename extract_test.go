@@ -23,9 +23,10 @@ func mustTagDataSlice(t *testing.T) func([]TagData, error) []TagData {
 func TestExtract(t *testing.T) {
 
 	type A1 struct {
-		Name  string `db:"name" dbselect:"name1"`
-		Score int64  `db:"score"`
-		Age   int64  `db:"age" dbselect:"estimate_age AS age"`
+		Name    string `db:"name" dbselect:"name1"`
+		Score   int64  `db:"score"`
+		Age     int64  `db:"age" dbselect:"estimate_age AS age"`
+		Complex string `db:"complex" dbselect:"COALESCE(a,b,c,'');joina=2"`
 	}
 
 	expected := []TagData{
@@ -40,6 +41,12 @@ func TestExtract(t *testing.T) {
 		{
 			Value: "estimate_age AS age",
 			Meta:  make(map[string]string),
+		},
+		{
+			Value: "COALESCE(a,b,c,'')",
+			Meta: map[string]string{
+				"joina": "2",
+			},
 		},
 	}
 

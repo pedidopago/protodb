@@ -38,7 +38,11 @@ func extractStep(v reflect.Value, tags []string, x *[]TagData) error {
 		srcfield := srcType.Field(i)
 		for _, tag := range tags {
 			if tt, ok := srcfield.Tag.Lookup(tag); ok {
-				tms := strings.Split(tt, ",")
+				separator := ","
+				if strings.Contains(tt, ";") {
+					separator = ";"
+				}
+				tms := strings.Split(tt, separator)
 				item := TagData{
 					Value: tms[0],
 					Meta:  make(map[string]string),

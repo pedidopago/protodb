@@ -49,6 +49,9 @@ func extractStep(v reflect.Value, tags []string, x *[]TagData) error {
 				}
 				if len(tms) > 1 {
 					for _, v := range tms[1:] {
+						if strings.TrimSpace(v) == "" {
+							continue
+						}
 						keyval := strings.SplitN(v, "=", 2)
 						if len(keyval) == 2 {
 							item.Meta[keyval[0]] = keyval[1]

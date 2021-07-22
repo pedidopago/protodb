@@ -98,8 +98,8 @@ type TagData struct {
 	Meta  map[string]string
 }
 
-// SelectColumns uses db_select, dbselect, db (in this order) to map columns to be selected
-func SelectColumns(v interface{}, tags ...string) ColumnsResult {
+// SelectColumnScan uses db_select, dbselect, db (in this order) to map columns to be selected
+func SelectColumnScan(v interface{}, tags ...string) ColumnsResult {
 	tags = append(tags, "db_select", "dbselect", "db")
 	result, err := extract(v, tags...)
 	return ColumnsResult{
@@ -130,7 +130,7 @@ func SelectContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface
 	vp := reflect.New(base)
 	// v := reflect.Indirect(vp)
 
-	columnsResult := SelectColumns(vp)
+	columnsResult := SelectColumnScan(vp)
 	if columnsResult.Err != nil {
 		return columnsResult.Err
 	}

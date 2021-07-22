@@ -35,9 +35,7 @@ func extractJoinReplace(ctx context.Context) map[string]string {
 
 func mapReplace(haystack string, needlem map[string]string) string {
 	for k, v := range needlem {
-		if strings.Contains(haystack, k) {
-			haystack = strings.Replace(haystack, k, v, -1)
-		}
+		haystack = strings.Replace(haystack, k, v, -1)
 	}
 	return haystack
 }

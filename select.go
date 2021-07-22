@@ -12,11 +12,19 @@ import (
 	"github.com/jmoiron/sqlx/reflectx"
 )
 
+// ColumnsResult is the metadata obtained by SelectColumns, InsertColumns or UpdateColumns
 type ColumnsResult struct {
 	Err     error
 	Columns []TagData
 }
 
+// SelectColumns extract the column names to be selected by  the SQL.
+// Example:
+//      // the example below extracts: ["fielda", "b.fieldb"]
+//      type Example struct {
+// 		   FieldA string `dbselect:"fielda;table=agents"`
+//         FieldB int `dbselect:"select=b.fieldb;join=LEFT JOIN tableb b"`
+//      }
 func (r ColumnsResult) SelectColumns() []string {
 	cols := make([]string, 0)
 	for _, v := range r.Columns {
@@ -33,6 +41,14 @@ func (r ColumnsResult) SelectColumns() []string {
 	return cols
 }
 
+// SelectTable extract the table name to be selected by the SQL.
+// Valid subtags: "select_table", "table"
+// Example:
+//      // the example below extracts: "agents"
+//      type Example struct {
+// 		   FieldA string `dbselect:"fielda;table=agents"`
+//         FieldB int `dbselect:"select=b.fieldb;join=LEFT JOIN tableb b"`
+//      }
 func (r ColumnsResult) SelectTable() string {
 	for _, v := range r.Columns {
 		if v.Meta == nil {
@@ -53,6 +69,14 @@ func (r ColumnsResult) SelectTable() string {
 	return ""
 }
 
+// SelectJoins extracts the tables to be joined by the SQL.
+// Valid subtags: "select_join", "join"
+// Example:
+//      // the example below extracts: ["LEFT JOIN tableb b ON b.agentid=a.id"]
+//      type Example struct {
+// 		   FieldA string `dbselect:"a.fielda;table=agents a"`
+//         FieldB int `dbselect:"select=b.fieldb;join=LEFT JOIN tableb b ON b.agentid=a.id"`
+//      }
 func (r ColumnsResult) SelectJoins() []string {
 	joins := make([]string, 0)
 	for _, v := range r.Columns {
@@ -68,6 +92,7 @@ func (r ColumnsResult) SelectJoins() []string {
 	return joins
 }
 
+// TagData is a collection of metadata and value, retrieved by parsing the tags of a field
 type TagData struct {
 	Value string
 	Meta  map[string]string
@@ -83,6 +108,8 @@ func SelectColumns(v interface{}, tags ...string) ColumnsResult {
 	}
 }
 
+// SelectContext executes a SelectColumns on dest (with reflection) to determine which table, columns and joins are used
+// to retrieve data. Use qfn to apply where filters (and other query modifiers).
 func SelectContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface{}, qfn func(rq squirrel.SelectBuilder) squirrel.SelectBuilder) error {
 	// 1 - extract ther underlying type
 	value := reflect.ValueOf(dest)

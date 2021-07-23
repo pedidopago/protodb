@@ -43,7 +43,7 @@ func InsertContext(ctx context.Context, dbtx sqlx.ExecerContext, items interface
 		colNames := []string{}
 		vals := []interface{}{}
 		for _, v := range columns.Columns {
-			if v.Name == "-" || v.Name == "" {
+			if v.Name != "-" && v.Name != "" {
 				if !skipInsertSingleRow(v) {
 					colNames = append(colNames, v.Name)
 					vals = append(vals, resolveValue(v))
@@ -86,7 +86,7 @@ func InsertContext(ctx context.Context, dbtx sqlx.ExecerContext, items interface
 		}
 		vals := []interface{}{}
 		for _, v := range columns.Columns {
-			if v.Name == "-" || v.Name == "" {
+			if v.Name != "-" && v.Name != "" {
 				vals = append(vals, resolveValue(v))
 			}
 		}

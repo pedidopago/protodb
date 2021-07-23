@@ -126,5 +126,10 @@ func resolveValue(v TagData) interface{} {
 		}
 		return nil
 	}
+	if reflect.ValueOf(v.FieldValue).IsZero() {
+		if v.MetaBool("zeronil", false) {
+			return nil
+		}
+	}
 	return v.FieldValue
 }

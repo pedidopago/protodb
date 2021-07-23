@@ -31,22 +31,30 @@ func TestExtract(t *testing.T) {
 
 	expected := []TagData{
 		{
-			Value: "name1",
-			Meta:  make(map[string]string),
+			Name:       "name1",
+			Meta:       make(map[string]string),
+			FieldName:  "Name",
+			FieldValue: "",
 		},
 		{
-			Value: "score",
-			Meta:  make(map[string]string),
+			Name:       "score",
+			Meta:       make(map[string]string),
+			FieldName:  "Score",
+			FieldValue: int64(0),
 		},
 		{
-			Value: "estimate_age AS age",
-			Meta:  make(map[string]string),
+			Name:       "estimate_age AS age",
+			Meta:       make(map[string]string),
+			FieldName:  "Age",
+			FieldValue: int64(0),
 		},
 		{
-			Value: "COALESCE(a,b,c,'')",
+			Name: "COALESCE(a,b,c,'')",
 			Meta: map[string]string{
 				"joina": "2",
 			},
+			FieldName:  "Complex",
+			FieldValue: "",
 		},
 	}
 

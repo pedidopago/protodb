@@ -33,18 +33,24 @@ func TestSelectColumns(t *testing.T) {
 	require.NoError(t, result.Err)
 	expected := []TagData{
 		{
-			Value: "id",
-			Meta:  make(map[string]string),
+			Name:       "id",
+			Meta:       make(map[string]string),
+			FieldName:  "StoreId",
+			FieldValue: "",
 		},
 		{
-			Value: "domain",
-			Meta:  make(map[string]string),
+			Name:       "domain",
+			Meta:       make(map[string]string),
+			FieldName:  "Domain",
+			FieldValue: "",
 		},
 		{
-			Value: "name",
+			Name: "name",
 			Meta: map[string]string{
 				"table": "stores",
 			},
+			FieldName:  "Name",
+			FieldValue: "",
 		},
 	}
 	require.Equal(t, expected, result.Columns)

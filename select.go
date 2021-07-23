@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/Masterminds/squirrel"
@@ -12,11 +13,13 @@ import (
 	"github.com/jmoiron/sqlx/reflectx"
 )
 
-// ColumnsResult is the metadata obtained by SelectColumns, InsertColumns or UpdateColumns
+// ColumnsResult is the metadata obtained by SelectColumnScan, InsertColumnScan or UpdateColumnScan
 type ColumnsResult struct {
 	Err     error
 	Columns []TagData
 }
+
+// TagDataMap returns a map of TagData by [value]TagData
 
 // SelectColumns extract the column names to be selected by  the SQL.
 // Example:
@@ -32,24 +35,24 @@ func (r ColumnsResult) SelectColumns() []string {
 			cols = append(cols, v.Meta["select"])
 		} else {
 			//TODO: workaround if v.Value == ""
-			if v.Value == "-" || v.Value == "" {
+			if v.Name == "-" || v.Name == "" {
 				continue
 			}
-			cols = append(cols, v.Value)
+			cols = append(cols, v.Name)
 		}
 	}
 	return cols
 }
 
-// SelectTable extract the table name to be selected by the SQL.
-// Valid subtags: "select_table", "table"
+// GetTableNameMeta extract the table name to be selected/inserted/updated by the SQL.
+// Valid subtags: "table", "select_table"
 // Example:
 //      // the example below extracts: "agents"
 //      type Example struct {
 // 		   FieldA string `dbselect:"fielda;table=agents"`
 //         FieldB int `dbselect:"select=b.fieldb;join=LEFT JOIN tableb b"`
 //      }
-func (r ColumnsResult) SelectTable() string {
+func (r ColumnsResult) GetTableNameMeta() string {
 	for _, v := range r.Columns {
 		if v.Meta == nil {
 			continue
@@ -94,8 +97,40 @@ func (r ColumnsResult) SelectJoins() []string {
 
 // TagData is a collection of metadata and value, retrieved by parsing the tags of a field
 type TagData struct {
-	Value string
-	Meta  map[string]string
+	Name       string
+	Meta       map[string]string
+	FieldName  string
+	FieldValue interface{}
+}
+
+func (d *TagData) MetaBool(name string, defaultv bool) bool {
+	if d.Meta == nil {
+		return defaultv
+	}
+	if v, ok := d.Meta[name]; ok {
+		if vb, err := strconv.ParseBool(v); err == nil {
+			return vb
+		}
+	}
+	return defaultv
+}
+
+func (d *TagData) MetaStringCheck(name string) (string, bool) {
+	if d.Meta == nil {
+		return "", false
+	}
+	v, ok := d.Meta[name]
+	return v, ok
+}
+
+func (d *TagData) MetaString(name string, defaultv string) string {
+	if d.Meta == nil {
+		return defaultv
+	}
+	if v, ok := d.Meta[name]; ok {
+		return v
+	}
+	return defaultv
 }
 
 // SelectColumnScan uses db_select, dbselect, db (in this order) to map columns to be selected
@@ -108,16 +143,24 @@ func SelectColumnScan(v interface{}, tags ...string) ColumnsResult {
 	}
 }
 
-// SelectContext executes a SelectColumns on dest (with reflection) to determine which table, columns and joins are used
-// to retrieve data. Use qfn to apply where filters (and other query modifiers).
-func SelectContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface{}, qfn func(rq squirrel.SelectBuilder) squirrel.SelectBuilder) error {
-	// 1 - extract ther underlying type
-	value := reflect.ValueOf(dest)
+// errIfNotAPointerOrNil returns an error if value is not a pointer or is nil
+func errIfNotAPointerOrNil(value reflect.Value) error {
 	if value.Kind() != reflect.Ptr {
 		return errors.New("dest is not a pointer")
 	}
 	if value.IsNil() {
 		return errors.New("dest is nil")
+	}
+	return nil
+}
+
+// SelectContext executes a SelectColumnScan on dest (with reflection) to determine which table, columns and joins are used
+// to retrieve data. Use qfn to apply where filters (and other query modifiers).
+func SelectContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface{}, qfn func(rq squirrel.SelectBuilder) squirrel.SelectBuilder) error {
+	// 1 - extract ther underlying type
+	value := reflect.ValueOf(dest)
+	if err := errIfNotAPointerOrNil(value); err != nil {
+		return err
 	}
 	// direct := reflect.Indirect(value)
 	slice, err := baseType(value.Type(), reflect.Slice)
@@ -136,7 +179,7 @@ func SelectContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface
 	}
 	// 2 - build query
 	rq := squirrel.Select(columnsResult.SelectColumns()...)
-	seltable := columnsResult.SelectTable()
+	seltable := columnsResult.GetTableNameMeta()
 	if seltable == "" {
 		return errors.New("select table not found")
 	}

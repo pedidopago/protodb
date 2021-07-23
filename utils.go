@@ -18,6 +18,12 @@ func baseType(t reflect.Type, expected reflect.Kind) (reflect.Type, error) {
 	return t, nil
 }
 
+// isTypeSliceOrSlicePointer returns true if t if reflect.Slice or points to a reflect.Slice
+func isTypeSliceOrSlicePointer(t reflect.Type) bool {
+	t = reflectx.Deref(t)
+	return t.Kind() == reflect.Slice
+}
+
 type contextVar string
 
 const (

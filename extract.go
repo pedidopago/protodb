@@ -47,7 +47,7 @@ func extractStep(v reflect.Value, tags []string, x *[]TagData) error {
 					Name:       tms[0],
 					Meta:       make(map[string]string),
 					FieldName:  srcfield.Name,
-					FieldValue: v.Field(i).Interface(),
+					FieldValue: v.Field(i),
 				}
 				if len(tms) > 1 {
 					for _, v := range tms[1:] {

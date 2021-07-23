@@ -30,8 +30,8 @@ func TestInsertColumnScan(t *testing.T) {
 	require.NoError(t, cres.Err)
 	require.Equal(t, "name", cres.Columns[0].Name)
 	require.Equal(t, "age", cres.Columns[1].Name)
-	require.Equal(t, "Tom", cres.Columns[0].FieldValue)
+	require.Equal(t, "Tom", cres.Columns[0].FieldValue.Interface())
 	cres = InsertColumnScan(rows[1])
 	require.NoError(t, cres.Err)
-	require.Equal(t, "John", cres.Columns[0].FieldValue)
+	require.Equal(t, "John", cres.Columns[0].FieldValue.Interface())
 }

@@ -102,34 +102,18 @@ func InsertContext(ctx context.Context, dbtx sqlx.ExecerContext, items interface
 	return dbtx.ExecContext(ctx, rawq, args...)
 }
 
-type Skippable interface {
-	Skip() bool
-}
-
 func skipInsertSingleRow(v TagData) bool {
-	if v.FieldValue == nil {
-		if v.MetaBool("skipnil", false) {
-			return true
-		}
-		return false
+	if !v.FieldValue.IsValid() {
+		return true
 	}
-	if sk, ok := v.FieldValue.(Skippable); ok && sk.Skip() {
+	if isNilSafe(v.FieldValue) {
+		return v.MetaBool("skipnil", false)
+	}
+	if v.FieldValue.IsZero() && !isNilSafe(v.FieldValue) {
+		return (v.MetaBool("skipzero", false) || v.MetaBool("skipzerovalue", false) || v.MetaBool("skipzeroval", false))
+	}
+	if sk, ok := v.FieldValue.Interface().(Skippable); ok && sk.Skip() {
 		return true
 	}
 	return false
-}
-
-func resolveValue(v TagData) interface{} {
-	if v.FieldValue == nil {
-		if vs, ok := v.MetaStringCheck("nilval"); ok {
-			return vs
-		}
-		return nil
-	}
-	if reflect.ValueOf(v.FieldValue).IsZero() {
-		if v.MetaBool("zeronil", false) {
-			return nil
-		}
-	}
-	return v.FieldValue
 }

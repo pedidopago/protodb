@@ -100,7 +100,7 @@ type TagData struct {
 	Name       string
 	Meta       map[string]string
 	FieldName  string
-	FieldValue interface{}
+	FieldValue reflect.Value
 }
 
 func (d *TagData) MetaBool(name string, defaultv bool) bool {

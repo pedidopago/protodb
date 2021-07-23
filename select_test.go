@@ -2,6 +2,7 @@ package protodb
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 
 	sqlm "github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,13 +38,13 @@ func TestSelectColumns(t *testing.T) {
 			Name:       "id",
 			Meta:       make(map[string]string),
 			FieldName:  "StoreId",
-			FieldValue: "",
+			FieldValue: reflect.ValueOf(""),
 		},
 		{
 			Name:       "domain",
 			Meta:       make(map[string]string),
 			FieldName:  "Domain",
-			FieldValue: "",
+			FieldValue: reflect.ValueOf(""),
 		},
 		{
 			Name: "name",
@@ -50,10 +52,16 @@ func TestSelectColumns(t *testing.T) {
 				"table": "stores",
 			},
 			FieldName:  "Name",
-			FieldValue: "",
+			FieldValue: reflect.ValueOf(""),
 		},
 	}
-	require.Equal(t, expected, result.Columns)
+	assert.Len(t, result.Columns, len(expected))
+	for i, v := range result.Columns {
+		assert.Equal(t, expected[i].FieldName, v.FieldName)
+		assert.Equal(t, expected[i].FieldValue.Interface(), v.FieldValue.Interface())
+		assert.Equal(t, expected[i].Meta, v.Meta)
+		assert.Equal(t, expected[i].Name, v.Name)
+	}
 }
 
 func TestSelectContext(t *testing.T) {

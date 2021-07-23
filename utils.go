@@ -51,3 +51,15 @@ func WithJoinReplace(ctx context.Context, from, to string) context.Context {
 	jr[from] = to
 	return context.WithValue(ctx, joinReplace, jr)
 }
+
+// isNilSafe does a v.IsNil() without panicking
+func isNilSafe(v reflect.Value) bool {
+	if !v.IsValid() {
+		return true
+	}
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice, reflect.UnsafePointer:
+		return v.IsNil()
+	}
+	return false
+}

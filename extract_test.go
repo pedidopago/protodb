@@ -1,9 +1,11 @@
 package protodb
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func mustStringSlice(t *testing.T) func([]string, error) []string {
@@ -34,19 +36,19 @@ func TestExtract(t *testing.T) {
 			Name:       "name1",
 			Meta:       make(map[string]string),
 			FieldName:  "Name",
-			FieldValue: "",
+			FieldValue: reflect.ValueOf(""),
 		},
 		{
 			Name:       "score",
 			Meta:       make(map[string]string),
 			FieldName:  "Score",
-			FieldValue: int64(0),
+			FieldValue: reflect.ValueOf(int64(0)),
 		},
 		{
 			Name:       "estimate_age AS age",
 			Meta:       make(map[string]string),
 			FieldName:  "Age",
-			FieldValue: int64(0),
+			FieldValue: reflect.ValueOf(int64(0)),
 		},
 		{
 			Name: "COALESCE(a,b,c,'')",
@@ -54,9 +56,16 @@ func TestExtract(t *testing.T) {
 				"joina": "2",
 			},
 			FieldName:  "Complex",
-			FieldValue: "",
+			FieldValue: reflect.ValueOf(""),
 		},
 	}
-
-	assert.Equal(t, expected, mustTagDataSlice(t)(extract(A1{}, "dbselect", "db")))
+	tagd, err := extract(A1{}, "dbselect", "db")
+	require.NoError(t, err)
+	assert.Len(t, tagd, len(expected))
+	for i, v := range tagd {
+		assert.Equal(t, expected[i].FieldName, v.FieldName)
+		assert.Equal(t, expected[i].FieldValue.Interface(), v.FieldValue.Interface())
+		assert.Equal(t, expected[i].Meta, v.Meta)
+		assert.Equal(t, expected[i].Name, v.Name)
+	}
 }

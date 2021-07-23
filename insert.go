@@ -36,7 +36,7 @@ func InsertContext(ctx context.Context, dbtx sqlx.ExecerContext, items interface
 			return nil, err
 		}
 		tname := columns.GetTableNameMeta()
-		if tname != "" {
+		if tname == "" {
 			return nil, errors.New("(insert) subtag 'table' not found")
 		}
 		rq = squirrel.Insert(tname)
@@ -72,7 +72,7 @@ func InsertContext(ctx context.Context, dbtx sqlx.ExecerContext, items interface
 		if i == 0 {
 			// start query and insert columns
 			tname := columns.GetTableNameMeta()
-			if tname != "" {
+			if tname == "" {
 				return nil, errors.New("(insert) subtag 'table' not found")
 			}
 			rq = squirrel.Insert(tname)

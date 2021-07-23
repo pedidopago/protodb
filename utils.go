@@ -18,6 +18,12 @@ func baseType(t reflect.Type, expected reflect.Kind) (reflect.Type, error) {
 	return t, nil
 }
 
+// isTypeSliceOrSlicePointer returns true if t if reflect.Slice or points to a reflect.Slice
+func isTypeSliceOrSlicePointer(t reflect.Type) bool {
+	t = reflectx.Deref(t)
+	return t.Kind() == reflect.Slice
+}
+
 type contextVar string
 
 const (
@@ -35,9 +41,7 @@ func extractJoinReplace(ctx context.Context) map[string]string {
 
 func mapReplace(haystack string, needlem map[string]string) string {
 	for k, v := range needlem {
-		if strings.Contains(haystack, k) {
-			haystack = strings.Replace(haystack, k, v, -1)
-		}
+		haystack = strings.Replace(haystack, k, v, -1)
 	}
 	return haystack
 }
@@ -46,4 +50,16 @@ func WithJoinReplace(ctx context.Context, from, to string) context.Context {
 	jr := extractJoinReplace(ctx)
 	jr[from] = to
 	return context.WithValue(ctx, joinReplace, jr)
+}
+
+// isNilSafe does a v.IsNil() without panicking
+func isNilSafe(v reflect.Value) bool {
+	if !v.IsValid() {
+		return true
+	}
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice, reflect.UnsafePointer:
+		return v.IsNil()
+	}
+	return false
 }

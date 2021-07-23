@@ -8,6 +8,24 @@ type QueryError struct {
 func (e *QueryError) Error() string { return e.Query + ": " + e.Err.Error() }
 func (e *QueryError) Unwrap() error { return e.Err }
 
+func QueryErr(query string, err error) error {
+	return &QueryError{
+		Query: query,
+		Err:   err,
+	}
+}
+
+// IsQueryError tests if an error is a *QueryError
+func IsQueryError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if _, ok := err.(*QueryError); ok {
+		return true
+	}
+	return false
+}
+
 type NotFoundError struct {
 	Name string
 }

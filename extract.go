@@ -38,13 +38,22 @@ func extractStep(v reflect.Value, tags []string, x *[]TagData) error {
 		srcfield := srcType.Field(i)
 		for _, tag := range tags {
 			if tt, ok := srcfield.Tag.Lookup(tag); ok {
-				tms := strings.Split(tt, ",")
+				separator := ","
+				if strings.Contains(tt, ";") {
+					separator = ";"
+				}
+				tms := strings.Split(tt, separator)
 				item := TagData{
-					Value: tms[0],
-					Meta:  make(map[string]string),
+					Name:       tms[0],
+					Meta:       make(map[string]string),
+					FieldName:  srcfield.Name,
+					FieldValue: v.Field(i),
 				}
 				if len(tms) > 1 {
 					for _, v := range tms[1:] {
+						if strings.TrimSpace(v) == "" {
+							continue
+						}
 						keyval := strings.SplitN(v, "=", 2)
 						if len(keyval) == 2 {
 							item.Meta[keyval[0]] = keyval[1]

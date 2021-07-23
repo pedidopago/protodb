@@ -154,6 +154,50 @@ func errIfNotAPointerOrNil(value reflect.Value) error {
 	return nil
 }
 
+// GetContext executes a SelectColumnScan on dest (with reflection) to determine which table, columns and joins are used
+// to retrieve data. Use qfn to apply where filters (and other query modifiers).
+func GetContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface{}, qfn func(rq squirrel.SelectBuilder) squirrel.SelectBuilder) error {
+	// 1 - extract ther underlying type
+	value := reflect.ValueOf(dest)
+	if isNilSafe(value) {
+		return errors.New("item is nil")
+	}
+	var rq squirrel.SelectBuilder
+	if isTypeSliceOrSlicePointer(value.Type()) {
+		return errors.New("GetContext: cannot use a slice or a slice pointer")
+	}
+	// Select a single row
+	columnsResult := SelectColumnScan(value)
+	if columnsResult.Err != nil {
+		return columnsResult.Err
+	}
+	rq = squirrel.Select(columnsResult.SelectColumns()...)
+	seltable := columnsResult.GetTableNameMeta()
+	if seltable == "" {
+		return errors.New("select table not found")
+	}
+	rq = rq.From(seltable)
+	if joins := columnsResult.SelectJoins(); len(joins) > 0 {
+		jr := extractJoinReplace(ctx)
+		for _, v := range joins {
+			v = mapReplace(v, jr)
+			if strings.Contains(strings.ToUpper(v), "JOIN ") {
+				rq = rq.JoinClause(v)
+			} else {
+				rq = rq.Join(v)
+			}
+		}
+	}
+	if qfn != nil {
+		rq = qfn(rq)
+	}
+	q, args, err := rq.ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build query: %w", err)
+	}
+	return sqlx.GetContext(ctx, dbtx, dest, q, args...)
+}
+
 // SelectContext executes a SelectColumnScan on dest (with reflection) to determine which table, columns and joins are used
 // to retrieve data. Use qfn to apply where filters (and other query modifiers).
 func SelectContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface{}, qfn func(rq squirrel.SelectBuilder) squirrel.SelectBuilder) error {

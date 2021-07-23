@@ -18,6 +18,12 @@ func baseType(t reflect.Type, expected reflect.Kind) (reflect.Type, error) {
 	return t, nil
 }
 
+// isTypeSliceOrSlicePointer returns true if t if reflect.Slice or points to a reflect.Slice
+func isTypeSliceOrSlicePointer(t reflect.Type) bool {
+	t = reflectx.Deref(t)
+	return t.Kind() == reflect.Slice
+}
+
 type contextVar string
 
 const (
@@ -35,9 +41,7 @@ func extractJoinReplace(ctx context.Context) map[string]string {
 
 func mapReplace(haystack string, needlem map[string]string) string {
 	for k, v := range needlem {
-		if strings.Contains(haystack, k) {
-			haystack = strings.Replace(haystack, k, v, -1)
-		}
+		haystack = strings.Replace(haystack, k, v, -1)
 	}
 	return haystack
 }

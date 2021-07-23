@@ -19,14 +19,7 @@ func getdb(t *testing.T) (db *sqlx.DB, mock sqlm.Sqlmock) {
 	return db, mock
 }
 
-type privateB struct {
-}
-
 type SelStructA struct {
-	state         *privateB
-	sizeCache     *privateB
-	unknownFields *privateB
-
 	// @inject_tag: db:"id"
 	StoreId string `protobuf:"bytes,1,opt,name=store_id,json=storeId,proto3" json:"store_id,omitempty" db:"id"`
 	// @inject_tag: db:"domain"
@@ -36,22 +29,28 @@ type SelStructA struct {
 }
 
 func TestSelectColumns(t *testing.T) {
-	result := SelectColumns(SelStructA{})
+	result := SelectColumnScan(SelStructA{})
 	require.NoError(t, result.Err)
 	expected := []TagData{
 		{
-			Value: "id",
-			Meta:  make(map[string]string),
+			Name:       "id",
+			Meta:       make(map[string]string),
+			FieldName:  "StoreId",
+			FieldValue: "",
 		},
 		{
-			Value: "domain",
-			Meta:  make(map[string]string),
+			Name:       "domain",
+			Meta:       make(map[string]string),
+			FieldName:  "Domain",
+			FieldValue: "",
 		},
 		{
-			Value: "name",
+			Name: "name",
 			Meta: map[string]string{
 				"table": "stores",
 			},
+			FieldName:  "Name",
+			FieldValue: "",
 		},
 	}
 	require.Equal(t, expected, result.Columns)

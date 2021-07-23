@@ -1,4 +1,4 @@
-package protodb
+package protodb_test
 
 import (
 	"context"
@@ -7,19 +7,11 @@ import (
 	"testing"
 
 	"github.com/Masterminds/squirrel"
-
-	sqlm "github.com/DATA-DOG/go-sqlmock"
-	"github.com/jmoiron/sqlx"
+	"github.com/pedidopago/protodb"
+	ptesting "github.com/pedidopago/protodb/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func getdb(t *testing.T) (db *sqlx.DB, mock sqlm.Sqlmock) {
-	rawdb, mock, err := sqlm.New()
-	require.NoError(t, err)
-	db = sqlx.NewDb(rawdb, "mysql")
-	return db, mock
-}
 
 type SelStructA struct {
 	// @inject_tag: db:"id"
@@ -31,9 +23,9 @@ type SelStructA struct {
 }
 
 func TestSelectColumns(t *testing.T) {
-	result := SelectColumnScan(SelStructA{})
+	result := protodb.SelectColumnScan(SelStructA{})
 	require.NoError(t, result.Err)
-	expected := []TagData{
+	expected := []protodb.TagData{
 		{
 			Name:       "id",
 			Meta:       make(map[string]string),
@@ -65,7 +57,7 @@ func TestSelectColumns(t *testing.T) {
 }
 
 func TestSelectContext(t *testing.T) {
-	db, mock := getdb(t)
+	db, mock := ptesting.MockDBMySQL(t)
 	defer db.Close()
 
 	x := strings.SplitN("a=1b=2", "=", 2)
@@ -75,7 +67,7 @@ func TestSelectContext(t *testing.T) {
 
 	items := make([]*SelStructA, 0)
 
-	require.NoError(t, SelectContext(context.Background(), db, &items, nil))
+	require.NoError(t, protodb.SelectContext(context.Background(), db, &items, nil))
 
 	require.NoError(t, mock.ExpectationsWereMet())
 
@@ -93,7 +85,7 @@ func TestSelectContextWithParams(t *testing.T) {
 		Score int    `db:"score,select=ascore.score,join=LEFT JOIN accounts_score ascore ON ascore.account_id=act.id"`
 	}
 
-	db, mock := getdb(t)
+	db, mock := ptesting.MockDBMySQL(t)
 	defer db.Close()
 
 	mock.ExpectQuery("SELECT .*").WithArgs("A%").WillReturnRows(mock.NewRows([]string{"id", "name", "score"}).AddRow(1, "Alice", 1000).AddRow(2, "Anne", 500))
@@ -105,7 +97,7 @@ func TestSelectContextWithParams(t *testing.T) {
 	// // to replace a string inside a join tag, use:
 	// ctx = WithJoinReplace(ctx, "needle", "replacement")
 
-	require.NoError(t, SelectContext(ctx, db, &items, func(rq squirrel.SelectBuilder) squirrel.SelectBuilder {
+	require.NoError(t, protodb.SelectContext(ctx, db, &items, func(rq squirrel.SelectBuilder) squirrel.SelectBuilder {
 		rq = rq.Where("full_name LIKE ?", "A%")
 		rq = rq.OrderBy("id ASC", "name ASC")
 		return rq
@@ -120,4 +112,23 @@ func TestSelectContextWithParams(t *testing.T) {
 	require.Equal(t, "Anne", items[1].Name)
 	require.Equal(t, 1000, items[0].Score)
 	require.Equal(t, 500, items[1].Score)
+}
+
+func TestGetContext(t *testing.T) {
+	db, mock := ptesting.MockDBMySQL(t)
+	defer db.Close()
+	defer assert.NoError(t, mock.ExpectationsWereMet())
+
+	item := struct {
+		ID    int    `db:"id" dbselect:"id;table=agents"`
+		Name  string `db:"name" dbselect:"name"`
+		Score int    `db:"score" dbselect:"-"`
+	}{}
+
+	mock.ExpectQuery("SELECT").WithArgs(1).WillReturnRows(mock.NewRows([]string{"id", "name"}).AddRow(1, "Alice"))
+	require.NoError(t, protodb.GetContext(context.Background(), db, &item, func(rq squirrel.SelectBuilder) squirrel.SelectBuilder {
+		return rq.Where("id=?", 1)
+	}))
+	require.Equal(t, int(1), item.ID)
+	require.Equal(t, "Alice", item.Name)
 }

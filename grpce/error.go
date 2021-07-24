@@ -168,7 +168,7 @@ func wrap2(ctx context.Context, err error) error {
 }
 
 func Wrap(err error) error {
-	return wrap2(nil, err)
+	return wrap2(context.TODO(), err)
 }
 
 func WrapRPC(ctx context.Context, fn func() error) error {

@@ -7,4 +7,5 @@ require (
 	github.com/Masterminds/squirrel v1.5.0
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/stretchr/testify v1.7.0
+	google.golang.org/grpc v1.39.0 // indirect
 )

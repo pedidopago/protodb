@@ -1,17 +1,19 @@
 package protodb
 
 type QueryError struct {
-	Query string
-	Err   error
+	Message string // public message
+	Query   string // query identifier
+	Err     error  // private underlying error
 }
 
 func (e *QueryError) Error() string { return e.Query + ": " + e.Err.Error() }
 func (e *QueryError) Unwrap() error { return e.Err }
 
-func QueryErr(query string, err error) error {
+func QueryErr(pubmsg, queryid string, err error) error {
 	return &QueryError{
-		Query: query,
-		Err:   err,
+		Message: pubmsg,
+		Query:   queryid,
+		Err:     err,
 	}
 }
 

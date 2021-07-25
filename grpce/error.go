@@ -128,12 +128,29 @@ func StatusError(code codes.Code, message string, internalMessage string) error 
 	return status.Error(code, message+internalPrefix+encode(internalMessage))
 }
 
+func mapstr(m metadata.MD) string {
+	b := new(bytes.Buffer)
+	for k, v := range m {
+		b.WriteString(k)
+		b.WriteByte(':')
+		b.WriteString(strings.Join(v, "; "))
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+// Debug true prints diagnostic information to stdout
+var Debug bool
+
 func xdfromctx(ctx context.Context) string {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return ""
 	}
-	return "[grpc path:" + strings.Join(md.Get("path"), ";") + "]"
+	if Debug {
+		println("grpc metadata: " + mapstr(md))
+	}
+	return "[grpc path:" + strings.Join(md.Get(":path"), ";") + "]"
 }
 
 func wrap2(ctx context.Context, err error) error {

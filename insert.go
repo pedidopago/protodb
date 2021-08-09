@@ -13,7 +13,7 @@ import (
 // InsertColumnScan uses db_insert, dbinsert, insert, db (in this order) to map columns and values to be inserted
 func InsertColumnScan(v interface{}, tags ...string) ColumnsResult {
 	tags = append(tags, "db_insert", "dbinsert", "insert", "db")
-	result, err := extract(v, tags...)
+	result, err := extract(v, map[string]string{"db": ","}, tags...)
 	return ColumnsResult{
 		Err:     err,
 		Columns: result,
@@ -35,7 +35,7 @@ func InsertContext(ctx context.Context, dbtx sqlx.ExecerContext, items interface
 		if err := columns.Err; err != nil {
 			return nil, err
 		}
-		tname := columns.GetTableNameMeta()
+		tname := columns.GetTableNameMeta(ctx)
 		if tname == "" {
 			return nil, errors.New("(insert) subtag 'table' not found")
 		}
@@ -71,7 +71,7 @@ func InsertContext(ctx context.Context, dbtx sqlx.ExecerContext, items interface
 		}
 		if i == 0 {
 			// start query and insert columns
-			tname := columns.GetTableNameMeta()
+			tname := columns.GetTableNameMeta(ctx)
 			if tname == "" {
 				return nil, errors.New("(insert) subtag 'table' not found")
 			}

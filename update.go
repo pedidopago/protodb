@@ -13,7 +13,7 @@ import (
 // UpdateColumnScan uses db_update, dbupdate, update, db (in this order) to map columns and values to be updateed
 func UpdateColumnScan(v interface{}, tags ...string) ColumnsResult {
 	tags = append(tags, "db_update", "dbupdate", "update", "db")
-	result, err := extract(v, tags...)
+	result, err := extract(v, map[string]string{"db": ","}, tags...)
 	return ColumnsResult{
 		Err:     err,
 		Columns: result,
@@ -41,7 +41,7 @@ func UpdateContext(ctx context.Context, dbtx sqlx.ExecerContext, item interface{
 	if err := columns.Err; err != nil {
 		return nil, err
 	}
-	tname := columns.GetTableNameMeta()
+	tname := columns.GetTableNameMeta(ctx)
 	if tname == "" {
 		return nil, errors.New("(update) subtag 'table' not found")
 	}

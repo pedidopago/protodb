@@ -59,7 +59,7 @@ func TestExtract(t *testing.T) {
 			FieldValue: reflect.ValueOf(""),
 		},
 	}
-	tagd, err := extract(A1{}, "dbselect", "db")
+	tagd, err := extract(A1{}, map[string]string{"db": ","}, "dbselect", "db")
 	require.NoError(t, err)
 	assert.Len(t, tagd, len(expected))
 	for i, v := range tagd {

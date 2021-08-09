@@ -19,7 +19,20 @@ type ColumnsResult struct {
 	Columns []TagData
 }
 
-// TagDataMap returns a map of TagData by [value]TagData
+type ConditionalContextKey string
+
+func IfKey(v string) ConditionalContextKey {
+	return ConditionalContextKey(v)
+}
+
+func contextIfIsTrue(ctx context.Context, name ConditionalContextKey, defaultv bool) bool {
+	if v := ctx.Value(name); v != nil {
+		if vb, ok := v.(bool); ok {
+			return vb
+		}
+	}
+	return defaultv
+}
 
 // SelectColumns extract the column names to be selected by  the SQL.
 // Example:
@@ -28,17 +41,33 @@ type ColumnsResult struct {
 // 		   FieldA string `dbselect:"fielda;table=agents"`
 //         FieldB int `dbselect:"select=b.fieldb;join=LEFT JOIN tableb b"`
 //      }
-func (r ColumnsResult) SelectColumns() []string {
+// Options:
+//   - "joinif": the value will be interpreted as a ConditionalContextKey and will be
+//               evaluated with the context.Value(ConditionalContextKey(joinifKey))
+func (r ColumnsResult) SelectColumns(ctx context.Context) []string {
 	cols := make([]string, 0)
 	for _, v := range r.Columns {
-		if v.Meta != nil && v.Meta["select"] != "" {
-			cols = append(cols, v.Meta["select"])
-		} else {
-			//TODO: workaround if v.Value == ""
-			if v.Name == "-" || v.Name == "" {
-				continue
+		isok := true
+		if v.RecursiveIf != nil && !contextIfIsTrue(ctx, *v.RecursiveIf, true) {
+			continue
+		}
+		if ifctxv := v.Meta["if"]; ifctxv != "" {
+			if vi := ctx.Value(IfKey(ifctxv)); vi != nil {
+				if vb, ok := vi.(bool); ok {
+					isok = vb
+				}
 			}
-			cols = append(cols, v.Name)
+		}
+		if isok {
+			if v.Meta != nil && v.Meta["select"] != "" {
+				cols = append(cols, v.Meta["select"])
+			} else {
+				//TODO: workaround if v.Value == ""
+				if v.Name == "-" || v.Name == "" {
+					continue
+				}
+				cols = append(cols, v.Name)
+			}
 		}
 	}
 	return cols
@@ -52,9 +81,12 @@ func (r ColumnsResult) SelectColumns() []string {
 // 		   FieldA string `dbselect:"fielda;table=agents"`
 //         FieldB int `dbselect:"select=b.fieldb;join=LEFT JOIN tableb b"`
 //      }
-func (r ColumnsResult) GetTableNameMeta() string {
+func (r ColumnsResult) GetTableNameMeta(ctx context.Context) string {
 	for _, v := range r.Columns {
 		if v.Meta == nil {
+			continue
+		}
+		if v.RecursiveIf != nil && !contextIfIsTrue(ctx, *v.RecursiveIf, true) {
 			continue
 		}
 		if x := v.Meta["select_table"]; x != "" {
@@ -63,6 +95,9 @@ func (r ColumnsResult) GetTableNameMeta() string {
 	}
 	for _, v := range r.Columns {
 		if v.Meta == nil {
+			continue
+		}
+		if v.RecursiveIf != nil && !contextIfIsTrue(ctx, *v.RecursiveIf, true) {
 			continue
 		}
 		if x := v.Meta["table"]; x != "" {
@@ -80,16 +115,32 @@ func (r ColumnsResult) GetTableNameMeta() string {
 // 		   FieldA string `dbselect:"a.fielda;table=agents a"`
 //         FieldB int `dbselect:"select=b.fieldb;join=LEFT JOIN tableb b ON b.agentid=a.id"`
 //      }
-func (r ColumnsResult) SelectJoins() []string {
+// Options:
+//   - "joinif": the value will be interpreted as a ConditionalContextKey and will be
+//               evaluated with the context.Value(ConditionalContextKey(joinifKey))
+func (r ColumnsResult) SelectJoins(ctx context.Context) []string {
 	joins := make([]string, 0)
 	for _, v := range r.Columns {
 		if v.Meta == nil {
 			continue
 		}
-		if x := v.Meta["select_join"]; x != "" {
-			joins = append(joins, x)
-		} else if x := v.Meta["join"]; x != "" {
-			joins = append(joins, x)
+		if v.RecursiveIf != nil && !contextIfIsTrue(ctx, *v.RecursiveIf, true) {
+			continue
+		}
+		isok := true
+		if ifctxv := v.Meta["joinif"]; ifctxv != "" {
+			if vi := ctx.Value(IfKey(ifctxv)); vi != nil {
+				if vb, ok := vi.(bool); ok {
+					isok = vb
+				}
+			}
+		}
+		if isok {
+			if x := v.Meta["select_join"]; x != "" {
+				joins = append(joins, x)
+			} else if x := v.Meta["join"]; x != "" {
+				joins = append(joins, x)
+			}
 		}
 	}
 	return joins
@@ -97,10 +148,11 @@ func (r ColumnsResult) SelectJoins() []string {
 
 // TagData is a collection of metadata and value, retrieved by parsing the tags of a field
 type TagData struct {
-	Name       string
-	Meta       map[string]string
-	FieldName  string
-	FieldValue reflect.Value
+	Name        string
+	Meta        map[string]string
+	FieldName   string
+	FieldValue  reflect.Value
+	RecursiveIf *ConditionalContextKey
 }
 
 func (d *TagData) MetaBool(name string, defaultv bool) bool {
@@ -136,7 +188,7 @@ func (d *TagData) MetaString(name string, defaultv string) string {
 // SelectColumnScan uses db_select, dbselect, db (in this order) to map columns to be selected
 func SelectColumnScan(v interface{}, tags ...string) ColumnsResult {
 	tags = append(tags, "db_select", "dbselect", "db")
-	result, err := extract(v, tags...)
+	result, err := extract(v, map[string]string{"db": ","}, tags...)
 	return ColumnsResult{
 		Err:     err,
 		Columns: result,
@@ -171,13 +223,13 @@ func GetContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface{},
 	if columnsResult.Err != nil {
 		return columnsResult.Err
 	}
-	rq = squirrel.Select(columnsResult.SelectColumns()...)
-	seltable := columnsResult.GetTableNameMeta()
+	rq = squirrel.Select(columnsResult.SelectColumns(ctx)...)
+	seltable := columnsResult.GetTableNameMeta(ctx)
 	if seltable == "" {
 		return errors.New("select table not found")
 	}
 	rq = rq.From(seltable)
-	if joins := columnsResult.SelectJoins(); len(joins) > 0 {
+	if joins := columnsResult.SelectJoins(ctx); len(joins) > 0 {
 		jr := extractJoinReplace(ctx)
 		for _, v := range joins {
 			v = mapReplace(v, jr)
@@ -222,13 +274,13 @@ func SelectContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface
 		return columnsResult.Err
 	}
 	// 2 - build query
-	rq := squirrel.Select(columnsResult.SelectColumns()...)
-	seltable := columnsResult.GetTableNameMeta()
+	rq := squirrel.Select(columnsResult.SelectColumns(ctx)...)
+	seltable := columnsResult.GetTableNameMeta(ctx)
 	if seltable == "" {
 		return errors.New("select table not found")
 	}
 	rq = rq.From(seltable)
-	if joins := columnsResult.SelectJoins(); len(joins) > 0 {
+	if joins := columnsResult.SelectJoins(ctx); len(joins) > 0 {
 		jr := extractJoinReplace(ctx)
 		for _, v := range joins {
 			v = mapReplace(v, jr)

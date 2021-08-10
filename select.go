@@ -247,7 +247,13 @@ func GetContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface{},
 	if err != nil {
 		return fmt.Errorf("failed to build query: %w", err)
 	}
-	return sqlx.GetContext(ctx, dbtx, dest, q, args...)
+	if err := sqlx.GetContext(ctx, dbtx, dest, q, args...); err != nil {
+		return err
+	}
+	if err := remap(dest); err != nil {
+		return fmt.Errorf("failed to remap: %w", err)
+	}
+	return nil
 }
 
 // SelectContext executes a SelectColumnScan on dest (with reflection) to determine which table, columns and joins are used
@@ -299,5 +305,11 @@ func SelectContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface
 		return fmt.Errorf("failed to build query: %w", err)
 	}
 
-	return sqlx.SelectContext(ctx, dbtx, dest, q, args...)
+	if err := sqlx.SelectContext(ctx, dbtx, dest, q, args...); err != nil {
+		return err
+	}
+	if err := remap(dest); err != nil {
+		return fmt.Errorf("failed to remap: %w", err)
+	}
+	return nil
 }

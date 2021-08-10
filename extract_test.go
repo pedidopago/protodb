@@ -8,20 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func mustStringSlice(t *testing.T) func([]string, error) []string {
-	return func(s []string, e error) []string {
-		assert.NoError(t, e)
-		return s
-	}
-}
-
-func mustTagDataSlice(t *testing.T) func([]TagData, error) []TagData {
-	return func(s []TagData, e error) []TagData {
-		assert.NoError(t, e)
-		return s
-	}
-}
-
 func TestExtract(t *testing.T) {
 
 	type A1 struct {

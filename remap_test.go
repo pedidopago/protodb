@@ -78,3 +78,5 @@ func TestRemapSliceOfPointers(t *testing.T) {
 	require.Equal(t, int(55), a[1].C.Age)
 	require.Equal(t, "Mark", a[1].C.Name)
 }
+
+//TODO: TEST RemapperSource

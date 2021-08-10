@@ -103,8 +103,3 @@ func remapStep(v reflect.Value) error {
 	}
 	return nil
 }
-
-// RemapDestination
-type RemapDestination interface {
-	Remap(src interface{}) error
-}

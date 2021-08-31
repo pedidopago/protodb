@@ -45,6 +45,15 @@ func contextIfIsTrue(ctx context.Context, name ConditionalContextKey, defaultv b
 //   - "joinif": the value will be interpreted as a ConditionalContextKey and will be
 //               evaluated with the context.Value(ConditionalContextKey(joinifKey))
 func (r ColumnsResult) SelectColumns(ctx context.Context) []string {
+	columnFn := func(c string) string {
+		return c
+	}
+	seltable := r.GetTableNameMeta(ctx)
+	if seltable != "" {
+		columnFn = func(c string) string {
+			return fmt.Sprintf("%s.%s", seltable, c)
+		}
+	}
 	cols := make([]string, 0)
 	for _, v := range r.Columns {
 		isok := true
@@ -60,7 +69,7 @@ func (r ColumnsResult) SelectColumns(ctx context.Context) []string {
 		}
 		if isok {
 			if v.Meta != nil && v.Meta["select"] != "" {
-				cols = append(cols, v.Meta["select"])
+				cols = append(cols, columnFn(v.Meta["select"]))
 			} else {
 				//TODO: workaround if v.Value == ""
 				if v.Name == "-" || v.Name == "" {
@@ -226,12 +235,13 @@ func BuildSelect(ctx context.Context, dest interface{}, qfn func(rq squirrel.Sel
 		err = columnsResult.Err
 		return
 	}
-	rq = squirrel.Select(columnsResult.SelectColumns(ctx)...)
 	seltable := columnsResult.GetTableNameMeta(ctx)
 	if seltable == "" {
 		err = errors.New("select table not found")
 		return
 	}
+	rq = squirrel.Select(columnsResult.SelectColumns(ctx)...)
+
 	rq = rq.From(seltable)
 	if joins := columnsResult.SelectJoins(ctx); len(joins) > 0 {
 		jr := extractJoinReplace(ctx)

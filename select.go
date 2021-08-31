@@ -206,6 +206,54 @@ func errIfNotAPointerOrNil(value reflect.Value) error {
 	return nil
 }
 
+// BuildSelect executes a SelectColumnScan on dest (with reflection) to determine which table, columns and joins are used
+// to build the query. Use qfn to apply where filters (and other query modifiers).
+func BuildSelect(ctx context.Context, dest interface{}, qfn func(rq squirrel.SelectBuilder) squirrel.SelectBuilder) (q string, args []interface{}, err error) {
+	// 1 - extract ther underlying type
+	value := reflect.ValueOf(dest)
+	if isNilSafe(value) {
+		err = errors.New("item is nil")
+		return
+	}
+	var rq squirrel.SelectBuilder
+	if isTypeSliceOrSlicePointer(value.Type()) {
+		err = errors.New("GetContext: cannot use a slice or a slice pointer")
+		return
+	}
+	// Select a single row
+	columnsResult := SelectColumnScan(value)
+	if columnsResult.Err != nil {
+		err = columnsResult.Err
+		return
+	}
+	rq = squirrel.Select(columnsResult.SelectColumns(ctx)...)
+	seltable := columnsResult.GetTableNameMeta(ctx)
+	if seltable == "" {
+		err = errors.New("select table not found")
+		return
+	}
+	rq = rq.From(seltable)
+	if joins := columnsResult.SelectJoins(ctx); len(joins) > 0 {
+		jr := extractJoinReplace(ctx)
+		for _, v := range joins {
+			v = mapReplace(v, jr)
+			if strings.Contains(strings.ToUpper(v), "JOIN ") {
+				rq = rq.JoinClause(v)
+			} else {
+				rq = rq.Join(v)
+			}
+		}
+	}
+	if qfn != nil {
+		rq = qfn(rq)
+	}
+	q, args, err = rq.ToSql()
+	if err != nil {
+		 err = fmt.Errorf("failed to build query: %w", err)
+	}
+	return
+}
+
 // GetContext executes a SelectColumnScan on dest (with reflection) to determine which table, columns and joins are used
 // to retrieve data. Use qfn to apply where filters (and other query modifiers).
 func GetContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface{}, qfn func(rq squirrel.SelectBuilder) squirrel.SelectBuilder) error {
@@ -306,6 +354,25 @@ func SelectContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface
 	}
 
 	if err := sqlx.SelectContext(ctx, dbtx, dest, q, args...); err != nil {
+		return err
+	}
+	if err := remap(dest); err != nil {
+		return fmt.Errorf("failed to remap: %w", err)
+	}
+	return nil
+}
+
+func QueryxContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface{}, qfn func(rq squirrel.SelectBuilder) squirrel.SelectBuilder) (*sqlx.Rows, error) {
+	q, args, err := BuildSelect(ctx, dest, qfn)
+	if err != nil {
+		return nil, err
+	}
+	return dbtx.QueryxContext(ctx, q, args...)
+}
+
+func StructScan(r *sqlx.Row, dest interface{}) error {
+	err := r.StructScan(dest)
+	if err != nil {
 		return err
 	}
 	if err := remap(dest); err != nil {

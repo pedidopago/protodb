@@ -51,6 +51,9 @@ func (r ColumnsResult) SelectColumns(ctx context.Context) []string {
 	seltable := r.GetTableNameMeta(ctx)
 	if seltable != "" {
 		columnFn = func(c string) string {
+			if strings.Contains(c, ".") {
+				return c
+			}
 			return fmt.Sprintf("%s.%s", seltable, c)
 		}
 	}

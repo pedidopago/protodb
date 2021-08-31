@@ -370,7 +370,18 @@ func QueryxContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface
 	return dbtx.QueryxContext(ctx, q, args...)
 }
 
-func StructScan(r *sqlx.Row, dest interface{}) error {
+func RowStructScan(r *sqlx.Row, dest interface{}) error {
+	err := r.StructScan(dest)
+	if err != nil {
+		return err
+	}
+	if err := remap(dest); err != nil {
+		return fmt.Errorf("failed to remap: %w", err)
+	}
+	return nil
+}
+
+func RowsStructScan(r *sqlx.Rows, dest interface{}) error {
 	err := r.StructScan(dest)
 	if err != nil {
 		return err

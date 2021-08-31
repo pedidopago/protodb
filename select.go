@@ -75,7 +75,7 @@ func (r ColumnsResult) SelectColumns(ctx context.Context) []string {
 				if v.Name == "-" || v.Name == "" {
 					continue
 				}
-				cols = append(cols, v.Name)
+				cols = append(cols, columnFn(v.Name))
 			}
 		}
 	}

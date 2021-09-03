@@ -2,6 +2,7 @@ package protodb
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -51,7 +52,7 @@ func (r ColumnsResult) SelectColumns(ctx context.Context) []string {
 		if v.RecursiveIf != nil && !contextIfIsTrue(ctx, *v.RecursiveIf, true) {
 			continue
 		}
-		if ifctxv := v.Meta["if"]; ifctxv != "" {
+		if ifctxv := v.Meta["joinif"]; ifctxv != "" {
 			if vi := ctx.Value(IfKey(ifctxv)); vi != nil {
 				if vb, ok := vi.(bool); ok {
 					isok = vb
@@ -71,6 +72,138 @@ func (r ColumnsResult) SelectColumns(ctx context.Context) []string {
 		}
 	}
 	return cols
+}
+
+// SelectJSON extract the column names to be selected by the SQL using a json key/pair
+// Example:
+//      // the example below extracts: "JSON_OBJECT('flda', a.id, 'fldb', JSON_ARRAYAGG(JSON_OBJECT('store_id', b.store_id))) output"
+//      type Example struct {
+// 		   FieldA int `dbselect:"a.fielda;table=agents a" json:"flda"`
+//         FieldB struct{
+//			  StoreID string `json:"store_id" dbselect:"b.store_id"`
+//		   } `dbselect:"-;join=LEFT JOIN tableb b ON b.aid=a.id"`
+//      }
+// Options:
+//   - "selectif": the value will be interpreted as a ConditionalContextKey and will be
+//               evaluated with the context.Value(ConditionalContextKey(joinifKey))
+func (r ColumnsResult) SelectJSON(ctx context.Context) string {
+	root := &jgroup{
+		Values: make([]*nameValuePair, 0),
+	}
+	vmap := make(map[string]*nameValuePair)
+
+	addval := func(jsonFullPath, name, value string) {
+		if strings.Count(jsonFullPath, "/") < 2 {
+			v := &nameValuePair{
+				Name:  name,
+				Value: value,
+			}
+			root.Values = append(root.Values, v)
+			vmap[jsonFullPath] = v
+		} else {
+			lvlabove := jsonFullPath[:strings.LastIndex(jsonFullPath, "/")]
+			parent := vmap[lvlabove]
+			if parent == nil {
+				println("SelectJSON: parent should not be nil")
+			} else {
+				x := &nameValuePair{
+					Name:  name,
+					Value: value,
+				}
+				parent.ValueArray = append(parent.ValueArray, x)
+				vmap[jsonFullPath] = x
+			}
+		}
+	}
+
+	//cols := make([]string, 0)
+	for _, v := range r.Columns {
+		isok := true
+		if v.RecursiveIf != nil && !contextIfIsTrue(ctx, *v.RecursiveIf, true) {
+			continue
+		}
+		if ifctxv := v.Meta["selectif"]; ifctxv != "" {
+			if vi := ctx.Value(IfKey(ifctxv)); vi != nil {
+				if vb, ok := vi.(bool); ok {
+					isok = vb
+				}
+			}
+		}
+		if isok {
+			vv := ""
+			if v.Meta != nil && v.Meta["select"] != "" {
+				vv = v.Meta["select"]
+			} else {
+				vv = v.Name
+			}
+			addval(v.JSON.FullPath, v.JSON.Name, vv)
+		}
+	}
+
+	selectq := new(strings.Builder)
+
+	selectq.WriteString("JSON_OBJECT(")
+	recursiveJsonWrite(selectq, root.Values)
+	selectq.WriteString(") json_output")
+
+	return selectq.String()
+}
+
+type nameValuePair struct {
+	Name       string
+	Value      string
+	ValueArray []*nameValuePair
+}
+
+type jgroup struct {
+	Values []*nameValuePair
+}
+
+func recursiveJsonWrite(b *strings.Builder, vals []*nameValuePair) {
+	for i, v := range vals {
+		if i != 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString("'" + v.Name + "', ")
+		if v.ValueArray != nil {
+			b.WriteString("JSON_ARRAYAGG(JSON_OBJECT(")
+			recursiveJsonWrite(b, v.ValueArray)
+			b.WriteString("))")
+		} else {
+			b.WriteString(v.Value)
+		}
+	}
+}
+
+// GetGroupBy extract the GROUP BY to be inserted to the query.
+// Example:
+//      // the example below extracts: ["fielda", "b.fieldb"]
+//      type Example struct {
+// 		   FieldA string `dbselect:"fielda;groupby=a.id"`
+//      }
+// Options:
+//   - "groupif": the value will be interpreted as a ConditionalContextKey and will be
+//               evaluated with the context.Value(ConditionalContextKey(joinifKey))
+func (r ColumnsResult) GetGroupBy(ctx context.Context) string {
+	for _, v := range r.Columns {
+		isok := true
+		if v.RecursiveIf != nil && !contextIfIsTrue(ctx, *v.RecursiveIf, true) {
+			continue
+		}
+		if ifctxv := v.Meta["groupif"]; ifctxv != "" {
+			if vi := ctx.Value(IfKey(ifctxv)); vi != nil {
+				if vb, ok := vi.(bool); ok {
+					isok = vb
+				}
+			}
+		}
+		if isok {
+			if v.Meta != nil && v.Meta["groupby"] != "" {
+				return v.Meta["groupby"]
+			}
+		}
+	}
+	return ""
 }
 
 // GetTableNameMeta extract the table name to be selected/inserted/updated by the SQL.
@@ -153,6 +286,11 @@ type TagData struct {
 	FieldName   string
 	FieldValue  reflect.Value
 	RecursiveIf *ConditionalContextKey
+	JSON        struct {
+		Name     string
+		FullPath string
+		Parent   string
+	}
 }
 
 func (d *TagData) MetaBool(name string, defaultv bool) bool {
@@ -240,6 +378,9 @@ func GetContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface{},
 			}
 		}
 	}
+	if groupby := columnsResult.GetGroupBy(ctx); groupby != "" {
+		rq = rq.GroupBy(groupby)
+	}
 	if qfn != nil {
 		rq = qfn(rq)
 	}
@@ -297,6 +438,9 @@ func SelectContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface
 			}
 		}
 	}
+	if groupby := columnsResult.GetGroupBy(ctx); groupby != "" {
+		rq = rq.GroupBy(groupby)
+	}
 	if qfn != nil {
 		rq = qfn(rq)
 	}
@@ -306,6 +450,63 @@ func SelectContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface
 	}
 
 	if err := sqlx.SelectContext(ctx, dbtx, dest, q, args...); err != nil {
+		return err
+	}
+	if err := remap(dest); err != nil {
+		return fmt.Errorf("failed to remap: %w", err)
+	}
+	return nil
+}
+
+func JSONGetContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface{}, qfn func(rq squirrel.SelectBuilder) squirrel.SelectBuilder) error {
+	// 1 - extract ther underlying type
+	value := reflect.ValueOf(dest)
+	if isNilSafe(value) {
+		return errors.New("item is nil")
+	}
+	var rq squirrel.SelectBuilder
+	if isTypeSliceOrSlicePointer(value.Type()) {
+		return errors.New("GetContext: cannot use a slice or a slice pointer")
+	}
+	// Select a single row
+	columnsResult := SelectColumnScan(value)
+	if columnsResult.Err != nil {
+		return columnsResult.Err
+	}
+	// 2 - build query
+	jselect := columnsResult.SelectJSON(ctx)
+	rq = squirrel.Select(jselect)
+	seltable := columnsResult.GetTableNameMeta(ctx)
+	if seltable == "" {
+		return errors.New("select table not found")
+	}
+	rq = rq.From(seltable)
+	if joins := columnsResult.SelectJoins(ctx); len(joins) > 0 {
+		jr := extractJoinReplace(ctx)
+		for _, v := range joins {
+			v = mapReplace(v, jr)
+			if strings.Contains(strings.ToUpper(v), "JOIN ") {
+				rq = rq.JoinClause(v)
+			} else {
+				rq = rq.Join(v)
+			}
+		}
+	}
+	if groupby := columnsResult.GetGroupBy(ctx); groupby != "" {
+		rq = rq.GroupBy(groupby)
+	}
+	if qfn != nil {
+		rq = qfn(rq)
+	}
+	q, args, err := rq.ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build query: %w", err)
+	}
+	rawjson := ""
+	if err := sqlx.GetContext(ctx, dbtx, &rawjson, q, args...); err != nil {
+		return err
+	}
+	if err := json.Unmarshal([]byte(rawjson), dest); err != nil {
 		return err
 	}
 	if err := remap(dest); err != nil {

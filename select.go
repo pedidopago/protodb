@@ -153,6 +153,7 @@ type nameValuePair struct {
 	Name       string
 	Value      string
 	ValueArray []*nameValuePair
+	IsSlice    bool
 }
 
 type jgroup struct {
@@ -164,12 +165,22 @@ func recursiveJsonWrite(b *strings.Builder, vals []*nameValuePair) {
 		if i != 0 {
 			b.WriteString(", ")
 		}
-		b.WriteString("'" + v.Name + "', ")
+
 		if v.ValueArray != nil {
-			b.WriteString("JSON_ARRAYAGG(JSON_OBJECT(")
-			recursiveJsonWrite(b, v.ValueArray)
-			b.WriteString("))")
-		} else {
+			if v.IsSlice {
+				b.WriteString("'" + v.Name + "', ")
+				b.WriteString("JSON_ARRAYAGG(JSON_OBJECT(")
+				recursiveJsonWrite(b, v.ValueArray)
+				b.WriteString("))")
+			} else if len(v.ValueArray) > 0 {
+				b.WriteString("'" + v.Name + "', ")
+				b.WriteString("JSON_OBJECT(")
+				recursiveJsonWrite(b, v.ValueArray)
+				b.WriteString(")")
+			}
+		} else if v.Value != "-" && v.Value != "" {
+			// get children!
+			b.WriteString("'" + v.Name + "', ")
 			b.WriteString(v.Value)
 		}
 	}
@@ -291,6 +302,7 @@ type TagData struct {
 		FullPath string
 		Parent   string
 	}
+	IsSlice bool
 }
 
 func (d *TagData) MetaBool(name string, defaultv bool) bool {

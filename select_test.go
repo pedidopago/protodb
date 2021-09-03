@@ -155,6 +155,28 @@ func TestJSONGetContext(t *testing.T) {
 	require.Equal(t, int(10), item.ID)
 }
 
+func TestJSONGetContext2(t *testing.T) {
+	db, mock := ptesting.MockDBMySQL(t)
+	defer db.Close()
+	defer assert.NoError(t, mock.ExpectationsWereMet())
+
+	item := struct {
+		ID      int    `db:"id" json:"id" dbselect:"a.id;table='''agents''' a"`
+		Name    string `db:"name" json:"name" dbselect:"aname"`
+		Score   int    `db:"score" json:"xscorex" dbselect:"a.score"`
+		History struct {
+			ID     int `db:"id" json:"id" dbselect:"ah.id"`
+			Points int `db:"points" json:"points" dbselect:"ah.points"`
+		} `db:"history" json:"history" dbselect:"-;join=JOIN agenthistory ah ON ah.agent_id=a.id"`
+	}{}
+	expect := `{"id": 10, "name": "Alice", "xscorex": 100, "history": {"id": 101, "points": 60}}`
+	mock.ExpectQuery("SELECT").WithArgs(10).WillReturnRows(mock.NewRows([]string{"json_output"}).AddRow(expect))
+	require.NoError(t, protodb.JSONGetContext(context.Background(), db, &item, func(rq squirrel.SelectBuilder) squirrel.SelectBuilder {
+		return rq.Where("a.id=?", 10)
+	}))
+	require.Equal(t, int(10), item.ID)
+}
+
 func TestJSONSelectContext(t *testing.T) {
 	db, mock := ptesting.MockDBMySQL(t)
 	defer db.Close()

@@ -98,6 +98,13 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 						}
 					}
 				}
+				if srcfield.Type.Kind() == reflect.Slice {
+					item.IsSlice = true
+				} else if srcfield.Type.Kind() == reflect.Ptr {
+					if srcfield.Type.Elem().Kind() == reflect.Slice {
+						item.IsSlice = true
+					}
+				}
 				foundItem = &item
 				*x = append(*x, item)
 				// parts := strings.Split(tt, ",")

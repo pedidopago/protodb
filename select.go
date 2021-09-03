@@ -458,6 +458,10 @@ func SelectContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface
 	return nil
 }
 
+// JSONGetContext executes a SelectColumnScan on dest (with reflection) to determine which table, columns and joins are used
+// to retrieve data. Use qfn to apply where filters (and other query modifiers).
+// The data is queried using JSON_OBJECT amd JSON_ARRAYAGG.
+// Mariadb 10.5+
 func JSONGetContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface{}, qfn func(rq squirrel.SelectBuilder) squirrel.SelectBuilder) error {
 	// 1 - extract ther underlying type
 	value := reflect.ValueOf(dest)
@@ -508,6 +512,95 @@ func JSONGetContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interfac
 	}
 	if err := json.Unmarshal([]byte(rawjson), dest); err != nil {
 		return err
+	}
+	if err := remap(dest); err != nil {
+		return fmt.Errorf("failed to remap: %w", err)
+	}
+	return nil
+}
+
+// JSONSelectContext executes a SelectColumnScan on dest (with reflection) to determine which table, columns and joins are used
+// to retrieve data. Use qfn to apply where filters (and other query modifiers).
+// The data is queried using JSON_OBJECT amd JSON_ARRAYAGG.
+// Mariadb 10.5+
+func JSONSelectContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface{}, qfn func(rq squirrel.SelectBuilder) squirrel.SelectBuilder) error {
+	// 1 - extract ther underlying type
+	value := reflect.ValueOf(dest)
+	if err := errIfNotAPointerOrNil(value); err != nil {
+		return err
+	}
+	// direct := reflect.Indirect(value)
+	slice, err := baseType(value.Type(), reflect.Slice)
+	if err != nil {
+		return err
+	}
+	// isPtr := slice.Elem().Kind() == reflect.Ptr
+	base := reflectx.Deref(slice.Elem())
+
+	vp := reflect.New(base)
+	// v := reflect.Indirect(vp)
+
+	columnsResult := SelectColumnScan(vp)
+	if columnsResult.Err != nil {
+		return columnsResult.Err
+	}
+	// 2 - build query
+	jselect := columnsResult.SelectJSON(ctx)
+	rq := squirrel.Select(jselect)
+	seltable := columnsResult.GetTableNameMeta(ctx)
+	if seltable == "" {
+		return errors.New("select table not found")
+	}
+	rq = rq.From(seltable)
+	if joins := columnsResult.SelectJoins(ctx); len(joins) > 0 {
+		jr := extractJoinReplace(ctx)
+		for _, v := range joins {
+			v = mapReplace(v, jr)
+			if strings.Contains(strings.ToUpper(v), "JOIN ") {
+				rq = rq.JoinClause(v)
+			} else {
+				rq = rq.Join(v)
+			}
+		}
+	}
+	if groupby := columnsResult.GetGroupBy(ctx); groupby != "" {
+		rq = rq.GroupBy(groupby)
+	}
+	if qfn != nil {
+		rq = qfn(rq)
+	}
+	q, args, err := rq.ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build query: %w", err)
+	}
+	txdest := []string{}
+	if err := sqlx.SelectContext(ctx, dbtx, &txdest, q, args...); err != nil {
+		return err
+	}
+	var lasterr error
+	var errc int
+	destval := reflect.ValueOf(dest).Elem()
+	for _, v := range txdest {
+		slcelm := slice.Elem()
+		if slcelm.Kind() == reflect.Ptr {
+			slcelm = slcelm.Elem()
+		}
+		vp := reflect.New(slcelm)
+		vx := vp.Interface()
+		if err := json.Unmarshal([]byte(v), vx); err != nil {
+			errc += 1
+			lasterr = err
+			continue
+		}
+		if slice.Elem().Kind() != reflect.Ptr {
+			vx = reflect.Indirect(reflect.ValueOf(vx)).Interface()
+		}
+		vp = reflect.ValueOf(vx)
+		// append to dest via reflection
+		destval.Set(reflect.Append(destval, vp))
+	}
+	if errc > 0 && errc == len(txdest) {
+		return lasterr
 	}
 	if err := remap(dest); err != nil {
 		return fmt.Errorf("failed to remap: %w", err)

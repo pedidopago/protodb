@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -45,15 +46,14 @@ func contextIfIsTrue(ctx context.Context, name ConditionalContextKey, defaultv b
 //   - "joinif": the value will be interpreted as a ConditionalContextKey and will be
 //               evaluated with the context.Value(ConditionalContextKey(joinifKey))
 func (r ColumnsResult) SelectColumns(ctx context.Context) []string {
-	seltable := r.GetTableNameMeta(ctx)
-	columnFn := func(name, dbTag string) string {
+	columnFn := func(name, table, dbTag string) string {
 		var field string
 		if strings.Contains(name, ".") {
 			field = name
-		} else if seltable != "" {
-			field = fmt.Sprintf("%s.%s", seltable, name)
+		} else if table != "" {
+			field = fmt.Sprintf("%s.%s", table, name)
 		}
-		if dbTag != "" && dbTag != field {
+		if dbTag != "" && dbTag != field && !regexp.MustCompile("(?i)^.+ AS .+$").MatchString(field) {
 			return fmt.Sprintf("%s AS %s", field, dbTag)
 		}
 		return field
@@ -73,13 +73,13 @@ func (r ColumnsResult) SelectColumns(ctx context.Context) []string {
 		}
 		if isok {
 			if v.Meta != nil && v.Meta["select"] != "" {
-				cols = append(cols, columnFn(v.Meta["select"], v.DbTag))
+				cols = append(cols, columnFn(v.Meta["select"], v.Table, v.DbTag))
 			} else {
 				//TODO: workaround if v.Value == ""
 				if v.Name == "-" || v.Name == "" {
 					continue
 				}
-				cols = append(cols, columnFn(v.Name, v.DbTag))
+				cols = append(cols, columnFn(v.Name, v.Table, v.DbTag))
 			}
 		}
 	}
@@ -102,7 +102,7 @@ func (r ColumnsResult) GetTableNameMeta(ctx context.Context) string {
 		if v.RecursiveIf != nil && !contextIfIsTrue(ctx, *v.RecursiveIf, true) {
 			continue
 		}
-		if x := v.Meta["select_table"]; x != "" {
+		if x := v.Table; x != "" {
 			return x
 		}
 	}
@@ -113,7 +113,7 @@ func (r ColumnsResult) GetTableNameMeta(ctx context.Context) string {
 		if v.RecursiveIf != nil && !contextIfIsTrue(ctx, *v.RecursiveIf, true) {
 			continue
 		}
-		if x := v.Meta["table"]; x != "" {
+		if x := v.Table; x != "" {
 			return x
 		}
 	}
@@ -162,6 +162,7 @@ func (r ColumnsResult) SelectJoins(ctx context.Context) []string {
 // TagData is a collection of metadata and value, retrieved by parsing the tags of a field
 type TagData struct {
 	Name        string
+	Table       string
 	DbTag       string
 	Meta        map[string]string
 	FieldName   string

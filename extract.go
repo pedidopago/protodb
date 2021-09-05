@@ -36,6 +36,7 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 	}
 	srcn := v.NumField()
 	srcType := v.Type()
+	var table string
 	for i := 0; i < srcn; i++ {
 		srcfield := srcType.Field(i)
 		skipRecursive := false
@@ -51,6 +52,7 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 				tms := strings.Split(tt, ts)
 				item := TagData{
 					Name:        tms[0],
+					Table:       table,
 					Meta:        make(map[string]string),
 					FieldName:   srcfield.Name,
 					FieldValue:  v.Field(i),
@@ -70,6 +72,9 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 							case "recursiveif":
 								rif := IfKey(keyval[1])
 								recursiveIf = &rif
+							case "table", "tablename":
+								item.Table = keyval[1]
+								table = keyval[1]
 							default:
 								item.Meta[keyval[0]] = keyval[1]
 							}

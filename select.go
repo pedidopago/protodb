@@ -45,17 +45,18 @@ func contextIfIsTrue(ctx context.Context, name ConditionalContextKey, defaultv b
 //   - "joinif": the value will be interpreted as a ConditionalContextKey and will be
 //               evaluated with the context.Value(ConditionalContextKey(joinifKey))
 func (r ColumnsResult) SelectColumns(ctx context.Context) []string {
-	columnFn := func(c string) string {
-		return c
-	}
 	seltable := r.GetTableNameMeta(ctx)
-	if seltable != "" {
-		columnFn = func(c string) string {
-			if strings.Contains(c, ".") {
-				return c
-			}
-			return fmt.Sprintf("%s.%s", seltable, c)
+	columnFn := func(name, dbTag string) string {
+		var field string
+		if strings.Contains(name, ".") {
+			field = name
+		} else if seltable != "" {
+			field = fmt.Sprintf("%s.%s", seltable, name)
 		}
+		if dbTag != "" && dbTag != field {
+			return fmt.Sprintf("%s AS %s", field, dbTag)
+		}
+		return field
 	}
 	cols := make([]string, 0)
 	for _, v := range r.Columns {
@@ -72,13 +73,13 @@ func (r ColumnsResult) SelectColumns(ctx context.Context) []string {
 		}
 		if isok {
 			if v.Meta != nil && v.Meta["select"] != "" {
-				cols = append(cols, columnFn(v.Meta["select"]))
+				cols = append(cols, columnFn(v.Meta["select"], v.DbTag))
 			} else {
 				//TODO: workaround if v.Value == ""
 				if v.Name == "-" || v.Name == "" {
 					continue
 				}
-				cols = append(cols, columnFn(v.Name))
+				cols = append(cols, columnFn(v.Name, v.DbTag))
 			}
 		}
 	}
@@ -161,6 +162,7 @@ func (r ColumnsResult) SelectJoins(ctx context.Context) []string {
 // TagData is a collection of metadata and value, retrieved by parsing the tags of a field
 type TagData struct {
 	Name        string
+	DbTag       string
 	Meta        map[string]string
 	FieldName   string
 	FieldValue  reflect.Value

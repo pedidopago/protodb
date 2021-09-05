@@ -56,6 +56,9 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 					FieldValue:  v.Field(i),
 					RecursiveIf: valrecursiveIf,
 				}
+				if v, ok := srcfield.Tag.Lookup("db"); ok {
+					item.DbTag = v
+				}
 				if len(tms) > 1 {
 					for _, vf := range tms[1:] {
 						if strings.TrimSpace(vf) == "" {

@@ -20,15 +20,19 @@ func extract(v interface{}, tagSeparators map[string]string, tags ...string) ([]
 		vval = reflect.ValueOf(v)
 	}
 	x := make([]TagData, 0)
-	err := extractStep(vval, tagSeparators, tags, &x, nil)
+	err := extractStep(vval, tagSeparators, tags, &x, nil, nil)
 	return x, err
 }
 
-func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string, x *[]TagData, valrecursiveIf *ConditionalContextKey) error {
+func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string, x *[]TagData, valrecursiveIf *ConditionalContextKey, parent *TagData) error {
 	kind := v.Kind()
 	switch kind {
 	case reflect.Ptr:
-		return extractStep(v.Elem(), tagSeparators, tags, x, valrecursiveIf)
+		return extractStep(v.Elem(), tagSeparators, tags, x, valrecursiveIf, parent)
+	case reflect.Slice:
+		// get zero value of v slice
+		slcval := reflect.New(v.Type().Elem())
+		return extractStep(slcval, tagSeparators, tags, x, valrecursiveIf, parent)
 	case reflect.Struct: //, reflect.Map:
 		// okay
 	default:
@@ -41,6 +45,7 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 		srcfield := srcType.Field(i)
 		skipRecursive := false
 		var recursiveIf *ConditionalContextKey
+		var foundItem *TagData
 		for _, tag := range tags {
 			ts := TagSeparator
 			if tagSeparators != nil && tagSeparators[tag] != "" {
@@ -58,8 +63,24 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 					FieldValue:  v.Field(i),
 					RecursiveIf: valrecursiveIf,
 				}
+
 				if v, ok := srcfield.Tag.Lookup("db"); ok {
 					item.DbTag = v
+				}
+				if vjs, _ := srcfield.Tag.Lookup("json"); vjs != "" {
+					if x := strings.IndexAny(vjs, ","); x != -1 {
+						item.JSON.Name = vjs[:x]
+					} else {
+						item.JSON.Name = vjs
+					}
+				} else {
+					item.JSON.Name = srcfield.Name
+				}
+				if parent != nil {
+					item.JSON.Parent = parent.JSON.Name
+					item.JSON.FullPath = parent.JSON.FullPath + "/" + item.JSON.Name
+				} else {
+					item.JSON.FullPath = "/" + item.JSON.Name
 				}
 				if len(tms) > 1 {
 					for _, vf := range tms[1:] {
@@ -86,6 +107,14 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 						}
 					}
 				}
+				if srcfield.Type.Kind() == reflect.Slice {
+					item.IsSlice = true
+				} else if srcfield.Type.Kind() == reflect.Ptr {
+					if srcfield.Type.Elem().Kind() == reflect.Slice {
+						item.IsSlice = true
+					}
+				}
+				foundItem = &item
 				*x = append(*x, item)
 				// parts := strings.Split(tt, ",")
 				// if strings.TrimSpace(parts[0]) != "-" {}
@@ -93,13 +122,14 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 			}
 		}
 		if !skipRecursive {
-			switch srcfield.Type.Kind() {
-			case reflect.Struct, reflect.Ptr:
+			akind := srcfield.Type.Kind()
+			switch akind {
+			case reflect.Struct, reflect.Ptr, reflect.Slice:
 				vif := recursiveIf
 				if vif == nil {
 					vif = valrecursiveIf
 				}
-				if err := extractStep(v.Field(i), tagSeparators, tags, x, vif); err != nil {
+				if err := extractStep(v.Field(i), tagSeparators, tags, x, vif, foundItem); err != nil {
 					//TODO: return recursive fields error without breaking higher levels
 					_ = err
 				}

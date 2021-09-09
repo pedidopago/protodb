@@ -228,3 +228,44 @@ func TestJSONSelectContext2(t *testing.T) {
 	require.Equal(t, int(11), items[1].ID)
 	require.Equal(t, "Bob", items[1].Name)
 }
+
+func TestBuildSelect(t *testing.T) {
+	itemNoJoins := struct {
+		ColumnA string `db:"column_a" dbselect:"column_a;table=table_a"`
+		ColumnB string `db:"column_b" dbselect:"column_b"`
+	}{}
+	q, _, err := protodb.BuildSelect(context.Background(), &itemNoJoins, nil)
+	require.NoError(t, err)
+	require.Equal(t, "SELECT table_a.column_a AS column_a, table_a.column_b AS column_b FROM table_a", q)
+
+	itemFieldJoin := struct {
+		FieldA string `db:"column_a" dbselect:"column_a;table=table_a"`
+		FieldB string `db:"column_b"`
+		FieldC string `db:"column_c" dbselect:"table_b.column_c;join=JOIN table_b ON table_a.column_b = table_b.column_b"`
+	}{}
+	q, _, err = protodb.BuildSelect(context.Background(), &itemFieldJoin, nil)
+	require.NoError(t, err)
+	require.Equal(t, "SELECT table_a.column_a AS column_a, table_a.column_b AS column_b, table_b.column_c AS column_c FROM table_a JOIN table_b ON table_a.column_b = table_b.column_b", q)
+
+	type A struct {
+		FieldA string `db:"column_a" dbselect:"column_a;table=table_a"`
+		FieldB string `db:"column_b"`
+	}
+	type Embedded struct {
+		FieldC string `db:"column_c" dbselect:"column_c;table=table_b"`
+		FieldD string `db:"column_d"`
+		A `dbselect:";join=JOIN table_a ON table_b.column_b = table_a.column_b"`
+	}
+	q, _, err = protodb.BuildSelect(context.Background(), &Embedded{}, nil)
+	require.NoError(t, err)
+	require.Equal(t, "SELECT table_b.column_c AS column_c, table_b.column_d AS column_d, table_a.column_a AS column_a, table_a.column_b AS column_b FROM table_b JOIN table_a ON table_b.column_b = table_a.column_b", q)
+
+	type Field struct {
+		FieldC string `db:"column_c" dbselect:"column_c;table=table_b"`
+		FieldD string `db:"column_d"`
+		StructField A `dbselect:";join=JOIN table_a ON table_b.column_b = table_a.column_b"`
+	}
+	q, _, err = protodb.BuildSelect(context.Background(), &Field{}, nil)
+	require.NoError(t, err)
+	require.Equal(t, "SELECT table_b.column_c AS column_c, table_b.column_d AS column_d, table_a.column_a AS column_a, table_a.column_b AS column_b FROM table_b JOIN table_a ON table_b.column_b = table_a.column_b", q)
+}

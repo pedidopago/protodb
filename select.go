@@ -518,6 +518,9 @@ func JSONGetContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interfac
 	if err != nil {
 		return fmt.Errorf("failed to build query: %w", err)
 	}
+	if Trace {
+		fmt.Printf("JSONGetContext: %s %v\n", q, args)
+	}
 	rawjson := ""
 	if err := sqlx.GetContext(ctx, dbtx, &rawjson, q, args...); err != nil {
 		return err
@@ -584,6 +587,9 @@ func JSONSelectContext(ctx context.Context, dbtx sqlx.QueryerContext, dest inter
 	q, args, err := rq.ToSql()
 	if err != nil {
 		return fmt.Errorf("failed to build query: %w", err)
+	}
+	if Trace {
+		fmt.Printf("JSONSelectContext: %s %v\n", q, args)
 	}
 	txdest := []string{}
 	if err := sqlx.SelectContext(ctx, dbtx, &txdest, q, args...); err != nil {

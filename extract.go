@@ -28,10 +28,20 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 	kind := v.Kind()
 	switch kind {
 	case reflect.Ptr:
+		a1 := fmt.Sprintln(kind, v.Type())
+		_ = a1
 		return extractStep(v.Elem(), tagSeparators, tags, x, valrecursiveIf, parent)
 	case reflect.Slice:
 		// get zero value of v slice
-		slcval := reflect.New(v.Type().Elem())
+		a1 := fmt.Sprintln(kind, v.Type(), v.Type().Elem())
+		_ = a1
+		var slcval reflect.Value
+		if v.Type().Elem().Kind() == reflect.Ptr {
+			slcval = reflect.New(v.Type().Elem().Elem())
+		} else {
+			slcval = reflect.New(v.Type().Elem())
+		}
+		// slcval := reflect.New(v.Type().Elem())
 		return extractStep(slcval, tagSeparators, tags, x, valrecursiveIf, parent)
 	case reflect.Struct: //, reflect.Map:
 		// okay

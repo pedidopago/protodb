@@ -136,7 +136,7 @@ func (r ColumnsResult) SelectJSON(ctx context.Context) string {
 			} else {
 				vv = v.Name
 			}
-			if v.JSON.Name != "" && v.JSON.Name != "-" {
+			if v.JSON.Name != "" && v.JSON.Name != "-" && vv != "" && vv != "-" {
 				addval(v.JSON.FullPath, v.JSON.Name, vv)
 			}
 		}

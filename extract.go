@@ -126,22 +126,47 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 			akind := srcfield.Type.Kind()
 			switch akind {
 			case reflect.Struct, reflect.Ptr, reflect.Slice:
-				vif := recursiveIf
-				if vif == nil {
-					vif = valrecursiveIf
+				aname := srcfield.Name
+				atypename := srcfield.Type.String()
+				switch atypename {
+				case "impl.MessageState":
+					// skip
+				default:
 				}
-				var fieldx reflect.Value
-				if akind == reflect.Ptr && srcfield.Type.Elem().Kind() == reflect.Struct {
-					fieldx = reflect.New(srcfield.Type.Elem())
-				} else {
-					fieldx = v.Field(i)
-				}
-				if err := extractStep(fieldx, tagSeparators, tags, x, vif, foundItem); err != nil {
-					//TODO: return recursive fields error without breaking higher levels
-					_ = err
+				if isTypeOK(atypename) && isNameOK(aname) {
+					vif := recursiveIf
+					if vif == nil {
+						vif = valrecursiveIf
+					}
+					var fieldx reflect.Value
+					if akind == reflect.Ptr && srcfield.Type.Elem().Kind() == reflect.Struct {
+						fieldx = reflect.New(srcfield.Type.Elem())
+					} else {
+						fieldx = v.Field(i)
+					}
+					if err := extractStep(fieldx, tagSeparators, tags, x, vif, foundItem); err != nil {
+						//TODO: return recursive fields error without breaking higher levels
+						_ = err
+					}
 				}
 			}
 		}
 	}
 	return nil
+}
+
+func isTypeOK(typename string) bool {
+	switch typename {
+	case "impl.MessageState":
+		return false
+	}
+	return true
+}
+
+func isNameOK(name string) bool {
+	switch name {
+	case "unknownFields":
+		return false
+	}
+	return true
 }

@@ -130,7 +130,13 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 				if vif == nil {
 					vif = valrecursiveIf
 				}
-				if err := extractStep(v.Field(i), tagSeparators, tags, x, vif, foundItem); err != nil {
+				var fieldx reflect.Value
+				if akind == reflect.Ptr {
+					fieldx = reflect.New(srcfield.Type.Elem())
+				} else {
+					fieldx = v.Field(i)
+				}
+				if err := extractStep(fieldx, tagSeparators, tags, x, vif, foundItem); err != nil {
 					//TODO: return recursive fields error without breaking higher levels
 					_ = err
 				}

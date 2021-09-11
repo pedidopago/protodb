@@ -214,11 +214,15 @@ type sliceToPoint struct {
 	History []historyElem `db:"history" json:"history" dbselect:"-;join=JOIN agenthistory ah ON ah.agent_id=a.id"`
 }
 
+type itemx struct {
+	StylePoints int `db:"style_points" json:"style_points" dbselect:"i.style_points"`
+}
 type sliceToPoint2 struct {
 	ID      int            `db:"id" json:"id" dbselect:"a.id;table='''agents''' a"`
 	Name    string         `db:"name" json:"name" dbselect:"aname"`
 	Score   int            `db:"score" json:"xscorex" dbselect:"a.score"`
 	History []*historyElem `db:"history" json:"history" dbselect:"-;join=JOIN agenthistory ah ON ah.agent_id=a.id"`
+	Item    *itemx         `db:"item" json:"item" dbselect:"-;join=JOIN item i ON i.id=a.item_id"`
 }
 
 func TestJSONSelectContext2(t *testing.T) {
@@ -244,8 +248,8 @@ func TestJSONSelectContext3(t *testing.T) {
 	defer assert.NoError(t, mock.ExpectationsWereMet())
 
 	items := make([]*sliceToPoint2, 0)
-	expect := `{"id": 10, "name": "Alice", "xscorex": 100, "history": [{"id": 101, "points": 60}, {"id": 99, "points": 40}]}`
-	expect2 := `{"id": 11, "name": "Bob", "xscorex": 300, "history": [{"id": 201, "points": 160}, {"id": 299, "points": 140}]}`
+	expect := `{"id": 10, "name": "Alice", "xscorex": 100, "history": [{"id": 101, "points": 60}, {"id": 99, "points": 40}], "item": {"style_points": 120}}`
+	expect2 := `{"id": 11, "name": "Bob", "xscorex": 300, "history": [{"id": 201, "points": 160}, {"id": 299, "points": 140}], "item": {"style_points": 160}}`
 	mock.ExpectQuery("SELECT").WithArgs(10, 11).WillReturnRows(mock.NewRows([]string{"json_output"}).AddRow(expect).AddRow(expect2))
 	require.NoError(t, protodb.JSONSelectContext(context.Background(), db, &items, func(rq squirrel.SelectBuilder) squirrel.SelectBuilder {
 		return rq.Where("a.id=? OR a.id=11", 10, 11)

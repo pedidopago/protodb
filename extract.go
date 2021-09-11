@@ -164,9 +164,13 @@ func isTypeOK(typename string) bool {
 }
 
 func isNameOK(name string) bool {
-	switch name {
-	case "unknownFields":
+	nameUpper := strings.ToUpper(name)
+	if name[0] != nameUpper[0] {
 		return false
 	}
+	// switch name {
+	// case "unknownFields":
+	// 	return false
+	// }
 	return true
 }

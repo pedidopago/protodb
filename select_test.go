@@ -263,8 +263,7 @@ func TestJSONSelectContext3(t *testing.T) {
 	require.Equal(t, "Bob", items[1].Name)
 }
 
-//FIXME(gabs): create a test for JSON select that unmarshals a proto.Message
-
+// a test for JSON select that unmarshals a proto.Message
 func TestJSONSelectContextProtoMessage(t *testing.T) {
 	db, mock := ptesting.MockDBMySQL(t)
 	defer db.Close()

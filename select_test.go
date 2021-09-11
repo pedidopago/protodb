@@ -258,3 +258,5 @@ func TestJSONSelectContext3(t *testing.T) {
 	require.Equal(t, int(11), items[1].ID)
 	require.Equal(t, "Bob", items[1].Name)
 }
+
+//FIXME(gabs): create a test for JSON select that unmarshals a proto.Message

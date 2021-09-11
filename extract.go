@@ -131,7 +131,7 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 					vif = valrecursiveIf
 				}
 				var fieldx reflect.Value
-				if akind == reflect.Ptr {
+				if akind == reflect.Ptr && srcfield.Type.Elem().Kind() == reflect.Struct {
 					fieldx = reflect.New(srcfield.Type.Elem())
 				} else {
 					fieldx = v.Field(i)

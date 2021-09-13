@@ -49,9 +49,10 @@ func contextIfIsTrue(ctx context.Context, name ConditionalContextKey, defaultv b
 func (r ColumnsResult) SelectColumns(ctx context.Context) []string {
 	columnFn := func(name, table, dbTag string) string {
 		var field string
-		if strings.Contains(name, ".") {
+		if !regexp.MustCompile("^[a-zA-Z0-9_]+$|^`.+`$").MatchString(name) || table == "" {
 			field = name
-		} else if table != "" {
+		} else {
+			// add table prefix if it's just a column name
 			field = fmt.Sprintf("%s.%s", table, name)
 		}
 		if dbTag != "" && dbTag != field && !regexp.MustCompile("(?i)^.+ AS .+$").MatchString(field) {

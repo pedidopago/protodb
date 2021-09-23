@@ -214,17 +214,6 @@ type sliceToPoint struct {
 	History []historyElem `db:"history" json:"history" dbselect:"-;join=JOIN agenthistory ah ON ah.agent_id=a.id"`
 }
 
-type itemx struct {
-	StylePoints int `db:"style_points" json:"style_points" dbselect:"i.style_points"`
-}
-type sliceToPoint2 struct {
-	ID      int            `db:"id" json:"id" dbselect:"a.id;table='''agents''' a"`
-	Name    string         `db:"name" json:"name" dbselect:"aname"`
-	Score   int            `db:"score" json:"xscorex" dbselect:"a.score"`
-	History []*historyElem `db:"history" json:"history" dbselect:"-;join=JOIN agenthistory ah ON ah.agent_id=a.id"`
-	Item    *itemx         `db:"item" json:"item" dbselect:"-;join=JOIN item i ON i.id=a.item_id"`
-}
-
 func TestJSONSelectContext2(t *testing.T) {
 	db, mock := ptesting.MockDBMySQL(t)
 	defer db.Close()

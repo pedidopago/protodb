@@ -96,10 +96,10 @@ func remapStep(v reflect.Value) error {
 					}
 				}
 			}
-		} else {
-			//TODO: log error (src not found)
+		} //else {
+		//TODO: log error (src not found)
 
-		}
+		//}
 	}
 	return nil
 }

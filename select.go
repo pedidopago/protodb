@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -46,6 +47,19 @@ func contextIfIsTrue(ctx context.Context, name ConditionalContextKey, defaultv b
 //   - "joinif": the value will be interpreted as a ConditionalContextKey and will be
 //               evaluated with the context.Value(ConditionalContextKey(joinifKey))
 func (r ColumnsResult) SelectColumns(ctx context.Context) []string {
+	columnFn := func(name, table, dbTag string) string {
+		var field string
+		if !regexp.MustCompile("^[a-zA-Z0-9_]+$|^`.+`$").MatchString(name) || table == "" {
+			field = name
+		} else {
+			// add table prefix if it's just a column name
+			field = fmt.Sprintf("%s.%s", table, name)
+		}
+		if dbTag != "" && dbTag != field && !regexp.MustCompile("(?i)^.+ AS .+$").MatchString(field) {
+			return fmt.Sprintf("%s AS %s", field, dbTag)
+		}
+		return field
+	}
 	cols := make([]string, 0)
 	for _, v := range r.Columns {
 		isok := true
@@ -61,13 +75,13 @@ func (r ColumnsResult) SelectColumns(ctx context.Context) []string {
 		}
 		if isok {
 			if v.Meta != nil && v.Meta["select"] != "" {
-				cols = append(cols, v.Meta["select"])
+				cols = append(cols, columnFn(v.Meta["select"], v.Table, v.DbTag))
 			} else {
 				//TODO: workaround if v.Value == ""
 				if v.Name == "-" || v.Name == "" {
 					continue
 				}
-				cols = append(cols, v.Name)
+				cols = append(cols, columnFn(v.Name, v.Table, v.DbTag))
 			}
 		}
 	}
@@ -235,7 +249,7 @@ func (r ColumnsResult) GetTableNameMeta(ctx context.Context) string {
 		if v.RecursiveIf != nil && !contextIfIsTrue(ctx, *v.RecursiveIf, true) {
 			continue
 		}
-		if x := v.Meta["select_table"]; x != "" {
+		if x := v.Table; x != "" {
 			return x
 		}
 	}
@@ -246,7 +260,7 @@ func (r ColumnsResult) GetTableNameMeta(ctx context.Context) string {
 		if v.RecursiveIf != nil && !contextIfIsTrue(ctx, *v.RecursiveIf, true) {
 			continue
 		}
-		if x := v.Meta["table"]; x != "" {
+		if x := v.Table; x != "" {
 			return x
 		}
 	}
@@ -295,6 +309,8 @@ func (r ColumnsResult) SelectJoins(ctx context.Context) []string {
 // TagData is a collection of metadata and value, retrieved by parsing the tags of a field
 type TagData struct {
 	Name        string
+	Table       string
+	DbTag       string
 	Meta        map[string]string
 	FieldName   string
 	FieldValue  reflect.Value
@@ -356,6 +372,55 @@ func errIfNotAPointerOrNil(value reflect.Value) error {
 		return errors.New("dest is nil")
 	}
 	return nil
+}
+
+// BuildSelect executes a SelectColumnScan on dest (with reflection) to determine which table, columns and joins are used
+// to build the query. Use qfn to apply where filters (and other query modifiers).
+func BuildSelect(ctx context.Context, dest interface{}, qfn func(rq squirrel.SelectBuilder) squirrel.SelectBuilder) (q string, args []interface{}, err error) {
+	// 1 - extract ther underlying type
+	value := reflect.ValueOf(dest)
+	if isNilSafe(value) {
+		err = errors.New("item is nil")
+		return
+	}
+	var rq squirrel.SelectBuilder
+	if isTypeSliceOrSlicePointer(value.Type()) {
+		err = errors.New("GetContext: cannot use a slice or a slice pointer")
+		return
+	}
+	// Select a single row
+	columnsResult := SelectColumnScan(value)
+	if columnsResult.Err != nil {
+		err = columnsResult.Err
+		return
+	}
+	seltable := columnsResult.GetTableNameMeta(ctx)
+	if seltable == "" {
+		err = errors.New("select table not found")
+		return
+	}
+	rq = squirrel.Select(columnsResult.SelectColumns(ctx)...)
+
+	rq = rq.From(seltable)
+	if joins := columnsResult.SelectJoins(ctx); len(joins) > 0 {
+		jr := extractJoinReplace(ctx)
+		for _, v := range joins {
+			v = mapReplace(v, jr)
+			if strings.Contains(strings.ToUpper(v), "JOIN ") {
+				rq = rq.JoinClause(v)
+			} else {
+				rq = rq.Join(v)
+			}
+		}
+	}
+	if qfn != nil {
+		rq = qfn(rq)
+	}
+	q, args, err = rq.ToSql()
+	if err != nil {
+		err = fmt.Errorf("failed to build query: %w", err)
+	}
+	return
 }
 
 // GetContext executes a SelectColumnScan on dest (with reflection) to determine which table, columns and joins are used
@@ -621,6 +686,36 @@ func JSONSelectContext(ctx context.Context, dbtx sqlx.QueryerContext, dest inter
 	}
 	if errc > 0 && errc == len(txdest) {
 		return lasterr
+	}
+	if err := remap(dest); err != nil {
+		return fmt.Errorf("failed to remap: %w", err)
+	}
+	return nil
+}
+
+func QueryxContext(ctx context.Context, dbtx sqlx.QueryerContext, dest interface{}, qfn func(rq squirrel.SelectBuilder) squirrel.SelectBuilder) (*sqlx.Rows, error) {
+	q, args, err := BuildSelect(ctx, dest, qfn)
+	if err != nil {
+		return nil, err
+	}
+	return dbtx.QueryxContext(ctx, q, args...)
+}
+
+func RowStructScan(r *sqlx.Row, dest interface{}) error {
+	err := r.StructScan(dest)
+	if err != nil {
+		return err
+	}
+	if err := remap(dest); err != nil {
+		return fmt.Errorf("failed to remap: %w", err)
+	}
+	return nil
+}
+
+func RowsStructScan(r *sqlx.Rows, dest interface{}) error {
+	err := r.StructScan(dest)
+	if err != nil {
+		return err
 	}
 	if err := remap(dest); err != nil {
 		return fmt.Errorf("failed to remap: %w", err)

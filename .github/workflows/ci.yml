@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, master]
+  push:
+    branches: [develop]
+env:
+  GOPRIVATE: go.pedidopago.com.br,github.com/pedidopago/*
+  GOPROXY: direct
+  # HOME: /home/runner # required for self-hosted
+jobs:
+  test:
+    name: "Run Unit Tests"
+    strategy:
+      matrix:
+        goversion: [1.16.x]
+    # runs-on: self-hosted
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.goversion }}
+      - name: Configure git for private modules
+        env:
+          USER: ${{ secrets.PRIVREPO_USER }}
+          TOKEN: ${{ secrets.PRIVREPO_TOKEN }}
+        run: |
+          git config --global url."https://${USER}:${TOKEN}@github.com/pedidopago".insteadOf "git+ssh://git@github.com/pedidopago" --replace-all
+          git config --global url."https://${USER}:${TOKEN}@github.com/pedidopago".insteadOf "https://github.com/pedidopago" --add
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          # In order:
+          # * Module download cache
+          # * Build cache (Linux)
+          # * Build cache (Mac)
+          # * Build cache (Windows)
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            %LocalAppData%\go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Test code
+        run: go test ./...
+  lint:
+    name: "Run static analysis"
+    strategy:
+      matrix:
+        goversion: [1.16.x]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: WillAbides/setup-go-faster@v1.5.0
+        with:
+          go-version: ${{ matrix.goversion }}
+      - name: Configure git for private modules
+        env:
+          USER: ${{ secrets.PRIVREPO_USER }}
+          TOKEN: ${{ secrets.PRIVREPO_TOKEN }}
+        run: |
+          git config --global url."https://${USER}:${TOKEN}@github.com/pedidopago".insteadOf "git+ssh://git@github.com/pedidopago" --replace-all
+          git config --global url."https://${USER}:${TOKEN}@github.com/pedidopago".insteadOf "https://github.com/pedidopago" --add
+      - run: "GO111MODULE=on go get honnef.co/go/tools/cmd/staticcheck"
+      - uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+      - uses: actions/cache@v2
+        with:
+          # In order:
+          # * Module download cache
+          # * Build cache (Linux)
+          # * Build cache (Mac)
+          # * Build cache (Windows)
+          # * Staticcheck cache (Linux)
+          # * Staticcheck cache (Mac)
+          # * Staticcheck cache (Windows)
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/.cache/staticcheck
+            ~/Library/Caches/go-build
+            ~/Library/Caches/staticcheck
+            %LocalAppData%\go-build
+            %LocalAppData%\staticcheck
+          key: ${{ runner.os }}-go-staticcheck-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-staticcheck-
+      - run: "go vet ./..."
+      - run: "$(go env GOPATH)/bin/staticcheck -go 1.16 ./..."

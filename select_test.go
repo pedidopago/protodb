@@ -4,7 +4,6 @@ import (
 	"context"
 	"reflect"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/Masterminds/squirrel"
@@ -12,9 +11,6 @@ import (
 	ptesting "github.com/pedidopago/protodb/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 type SelStructA struct {
@@ -271,16 +267,16 @@ func TestBuildSelect(t *testing.T) {
 	type Embedded struct {
 		FieldC string `db:"column_c" dbselect:"column_c;table=table_b"`
 		FieldD string `db:"column_d"`
-		A `dbselect:";join=JOIN table_a ON table_b.column_b = table_a.column_b"`
+		A      `dbselect:";join=JOIN table_a ON table_b.column_b = table_a.column_b"`
 	}
 	q, _, err = protodb.BuildSelect(context.Background(), &Embedded{}, nil)
 	require.NoError(t, err)
 	require.Equal(t, "SELECT table_b.column_c AS column_c, table_b.column_d AS column_d, table_a.column_a AS column_a, table_a.column_b AS column_b FROM table_b JOIN table_a ON table_b.column_b = table_a.column_b", q)
 
 	type Field struct {
-		FieldC string `db:"column_c" dbselect:"column_c;table=table_b"`
-		FieldD string `db:"column_d"`
-		StructField A `dbselect:";join=JOIN table_a ON table_b.column_b = table_a.column_b"`
+		FieldC      string `db:"column_c" dbselect:"column_c;table=table_b"`
+		FieldD      string `db:"column_d"`
+		StructField A      `dbselect:";join=JOIN table_a ON table_b.column_b = table_a.column_b"`
 	}
 	q, _, err = protodb.BuildSelect(context.Background(), &Field{}, nil)
 	require.NoError(t, err)

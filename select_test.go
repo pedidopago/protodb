@@ -19,7 +19,7 @@ type SelStructA struct {
 	// @inject_tag: db:"domain"
 	Domain string `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty" db:"domain"`
 	// @inject_tag: db:"name"
-	Name string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty" db:"name,table=stores"`
+	Name string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty" db:"name" dbselect:"name;table=stores"`
 }
 
 func TestSelectColumns(t *testing.T) {
@@ -39,11 +39,10 @@ func TestSelectColumns(t *testing.T) {
 			FieldValue: reflect.ValueOf(""),
 		},
 		{
-			Name: "name",
-			Meta: map[string]string{
-				"table": "stores",
-			},
+			Name:       "name",
+			Meta:       make(map[string]string),
 			FieldName:  "Name",
+			Table:      "stores",
 			FieldValue: reflect.ValueOf(""),
 		},
 	}
@@ -51,6 +50,7 @@ func TestSelectColumns(t *testing.T) {
 	for i, v := range result.Columns {
 		assert.Equal(t, expected[i].FieldName, v.FieldName)
 		assert.Equal(t, expected[i].FieldValue.Interface(), v.FieldValue.Interface())
+		assert.Equal(t, expected[i].Table, v.Table)
 		assert.Equal(t, expected[i].Meta, v.Meta)
 		assert.Equal(t, expected[i].Name, v.Name)
 	}

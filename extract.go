@@ -28,10 +28,20 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 	kind := v.Kind()
 	switch kind {
 	case reflect.Ptr:
+		a1 := fmt.Sprintln(kind, v.Type())
+		_ = a1
 		return extractStep(v.Elem(), tagSeparators, tags, x, valrecursiveIf, parent)
 	case reflect.Slice:
 		// get zero value of v slice
-		slcval := reflect.New(v.Type().Elem())
+		a1 := fmt.Sprintln(kind, v.Type(), v.Type().Elem())
+		_ = a1
+		var slcval reflect.Value
+		if v.Type().Elem().Kind() == reflect.Ptr {
+			slcval = reflect.New(v.Type().Elem().Elem())
+		} else {
+			slcval = reflect.New(v.Type().Elem())
+		}
+		// slcval := reflect.New(v.Type().Elem())
 		return extractStep(slcval, tagSeparators, tags, x, valrecursiveIf, parent)
 	case reflect.Struct: //, reflect.Map:
 		// okay
@@ -125,16 +135,51 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 			akind := srcfield.Type.Kind()
 			switch akind {
 			case reflect.Struct, reflect.Ptr, reflect.Slice:
-				vif := recursiveIf
-				if vif == nil {
-					vif = valrecursiveIf
+				aname := srcfield.Name
+				atypename := srcfield.Type.String()
+				switch atypename {
+				case "impl.MessageState":
+					// skip
+				default:
 				}
-				if err := extractStep(v.Field(i), tagSeparators, tags, x, vif, foundItem); err != nil {
-					//TODO: return recursive fields error without breaking higher levels
-					_ = err
+				if isTypeOK(atypename) && isNameOK(aname) {
+					vif := recursiveIf
+					if vif == nil {
+						vif = valrecursiveIf
+					}
+					var fieldx reflect.Value
+					if akind == reflect.Ptr && srcfield.Type.Elem().Kind() == reflect.Struct {
+						fieldx = reflect.New(srcfield.Type.Elem())
+					} else {
+						fieldx = v.Field(i)
+					}
+					if err := extractStep(fieldx, tagSeparators, tags, x, vif, foundItem); err != nil {
+						//TODO: return recursive fields error without breaking higher levels
+						_ = err
+					}
 				}
 			}
 		}
 	}
 	return nil
+}
+
+func isTypeOK(typename string) bool {
+	switch typename {
+	case "impl.MessageState":
+		return false
+	}
+	return true
+}
+
+func isNameOK(name string) bool {
+	nameUpper := strings.ToUpper(name)
+	if name[0] != nameUpper[0] {
+		return false
+	}
+	// switch name {
+	// case "unknownFields":
+	// 	return false
+	// }
+	return true
 }

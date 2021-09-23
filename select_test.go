@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Masterminds/squirrel"
@@ -11,6 +12,9 @@ import (
 	ptesting "github.com/pedidopago/protodb/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 type SelStructA struct {
@@ -202,14 +206,27 @@ func TestJSONSelectContext(t *testing.T) {
 	require.Equal(t, "Bob", items[1].Name)
 }
 
+type historyElem struct {
+	ID     int `db:"id" json:"id" dbselect:"ah.id"`
+	Points int `db:"points" json:"points" dbselect:"ah.points"`
+}
+
 type sliceToPoint struct {
-	ID      int    `db:"id" json:"id" dbselect:"a.id;table='''agents''' a"`
-	Name    string `db:"name" json:"name" dbselect:"aname"`
-	Score   int    `db:"score" json:"xscorex" dbselect:"a.score"`
-	History []struct {
-		ID     int `db:"id" json:"id" dbselect:"ah.id"`
-		Points int `db:"points" json:"points" dbselect:"ah.points"`
-	} `db:"history" json:"history" dbselect:"-;join=JOIN agenthistory ah ON ah.agent_id=a.id"`
+	ID      int           `db:"id" json:"id" dbselect:"a.id;table='''agents''' a"`
+	Name    string        `db:"name" json:"name" dbselect:"aname"`
+	Score   int           `db:"score" json:"xscorex" dbselect:"a.score"`
+	History []historyElem `db:"history" json:"history" dbselect:"-;join=JOIN agenthistory ah ON ah.agent_id=a.id"`
+}
+
+type itemx struct {
+	StylePoints int `db:"style_points" json:"style_points" dbselect:"i.style_points"`
+}
+type sliceToPoint2 struct {
+	ID      int            `db:"id" json:"id" dbselect:"a.id;table='''agents''' a"`
+	Name    string         `db:"name" json:"name" dbselect:"aname"`
+	Score   int            `db:"score" json:"xscorex" dbselect:"a.score"`
+	History []*historyElem `db:"history" json:"history" dbselect:"-;join=JOIN agenthistory ah ON ah.agent_id=a.id"`
+	Item    *itemx         `db:"item" json:"item" dbselect:"-;join=JOIN item i ON i.id=a.item_id"`
 }
 
 func TestJSONSelectContext2(t *testing.T) {

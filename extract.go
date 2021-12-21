@@ -53,6 +53,8 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 	var table string
 	for i := 0; i < srcn; i++ {
 		srcfield := srcType.Field(i)
+		// replace ''' with `
+		srcfield.Tag = reflect.StructTag(strings.Replace(string(srcfield.Tag), "'''", "`", -1))
 		skipRecursive := false
 		var recursiveIf *ConditionalContextKey
 		var foundItem *TagData
@@ -61,8 +63,6 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 			if tagSeparators != nil && tagSeparators[tag] != "" {
 				ts = tagSeparators[tag]
 			}
-			// replace ''' with `
-			tag = strings.Replace(tag, "'''", "`", -1)
 			if tt, ok := srcfield.Tag.Lookup(tag); ok {
 				tms := strings.Split(tt, ts)
 				item := TagData{

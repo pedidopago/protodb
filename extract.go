@@ -3,6 +3,7 @@ package protodb
 import (
 	"errors"
 	"fmt"
+	"github.com/pedidopago/protodb/valer"
 	"reflect"
 	"strings"
 )
@@ -53,6 +54,7 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 	var table string
 	for i := 0; i < srcn; i++ {
 		srcfield := srcType.Field(i)
+		srcFieldValue := v.Field(i)
 		// replace ''' with `
 		srcfield.Tag = reflect.StructTag(strings.Replace(string(srcfield.Tag), "'''", "`", -1))
 		skipRecursive := false
@@ -124,8 +126,8 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 						item.IsSlice = true
 					}
 				}
-				foundItem = &item
 				*x = append(*x, item)
+				foundItem = &((*x)[len(*x)-1])
 				// parts := strings.Split(tt, ",")
 				// if strings.TrimSpace(parts[0]) != "-" {}
 				break
@@ -147,11 +149,28 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 					if vif == nil {
 						vif = valrecursiveIf
 					}
-					var fieldx reflect.Value
+					var fieldx = srcFieldValue
 					if akind == reflect.Ptr && srcfield.Type.Elem().Kind() == reflect.Struct {
-						fieldx = reflect.New(srcfield.Type.Elem())
-					} else {
-						fieldx = v.Field(i)
+						if fieldx.IsNil() {
+							fieldx = reflect.New(srcfield.Type.Elem())
+						}
+						if foundItem != nil {
+							// Converting custom interfaces to driver.Valuer
+							vi := srcFieldValue.Interface()
+							if valS, ok := vi.(valer.StringValer); ok {
+								foundItem.FieldValue = reflect.ValueOf(valer.WrapStringValuer(valS))
+							} else if valB, ok := vi.(valer.BoolValer); ok {
+								foundItem.FieldValue = reflect.ValueOf(valer.WrapBoolValuer(valB))
+							} else if valI32, ok := vi.(valer.Int32Valer); ok {
+								foundItem.FieldValue = reflect.ValueOf(valer.WrapInt32Valuer(valI32))
+							} else if valI64, ok := vi.(valer.Int64Valer); ok {
+								foundItem.FieldValue = reflect.ValueOf(valer.WrapInt64Valuer(valI64))
+							} else if valT, ok := vi.(valer.TimeValer); ok {
+								foundItem.FieldValue = reflect.ValueOf(valer.WrapTimeValuer(valT))
+							} else {
+								// This will probably return an error
+							}
+						}
 					}
 					if err := extractStep(fieldx, tagSeparators, tags, x, vif, foundItem); err != nil {
 						//TODO: return recursive fields error without breaking higher levels

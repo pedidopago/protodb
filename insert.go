@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/pedidopago/protodb/valer"
 	"reflect"
 
 	"github.com/Masterminds/squirrel"
@@ -109,7 +110,7 @@ func skipInsertSingleRow(v TagData) bool {
 	if isNilSafe(v.FieldValue) {
 		return v.MetaBool("skipnil", false)
 	}
-	if v.FieldValue.IsZero() && !isNilSafe(v.FieldValue) {
+	if (v.FieldValue.IsZero() || valer.IsZeroValer(v.FieldValue)) && !isNilSafe(v.FieldValue) {
 		return (v.MetaBool("skipzero", false) || v.MetaBool("skipzerovalue", false) || v.MetaBool("skipzeroval", false))
 	}
 	if sk, ok := v.FieldValue.Interface().(Skippable); ok && sk.Skip() {

@@ -191,3 +191,11 @@ func Wrap(err error) error {
 func WrapRPC(ctx context.Context, fn func() error) error {
 	return wrap2(ctx, fn())
 }
+
+func DecodeString(v string) string {
+	if !strings.Contains(v, "::internal::") {
+		return v
+	}
+	rpl := strings.Split(v, "::internal::")
+	return decode(rpl[1])
+}

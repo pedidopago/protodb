@@ -79,7 +79,7 @@ func InsertContext(ctx context.Context, dbtx sqlx.ExecerContext, items interface
 			rq = squirrel.Insert(tname)
 			colNames := []string{}
 			for _, v := range columns.Columns {
-				if v.Name == "-" || v.Name == "" {
+				if v.Name != "-" && v.Name != "" {
 					colNames = append(colNames, v.Name)
 				}
 			}

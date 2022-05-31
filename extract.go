@@ -3,9 +3,10 @@ package protodb
 import (
 	"errors"
 	"fmt"
-	"github.com/pedidopago/protodb/valer"
 	"reflect"
 	"strings"
+
+	"github.com/pedidopago/protodb/valer"
 )
 
 var TagSeparator = ";"
@@ -155,21 +156,7 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 							fieldx = reflect.New(srcfield.Type.Elem())
 						}
 						if foundItem != nil {
-							// Converting custom interfaces to driver.Valuer
-							vi := srcFieldValue.Interface()
-							if valS, ok := vi.(valer.StringValer); ok {
-								foundItem.FieldValue = reflect.ValueOf(valer.WrapStringValuer(valS))
-							} else if valB, ok := vi.(valer.BoolValer); ok {
-								foundItem.FieldValue = reflect.ValueOf(valer.WrapBoolValuer(valB))
-							} else if valI32, ok := vi.(valer.Int32Valer); ok {
-								foundItem.FieldValue = reflect.ValueOf(valer.WrapInt32Valuer(valI32))
-							} else if valI64, ok := vi.(valer.Int64Valer); ok {
-								foundItem.FieldValue = reflect.ValueOf(valer.WrapInt64Valuer(valI64))
-							} else if valT, ok := vi.(valer.TimeValer); ok {
-								foundItem.FieldValue = reflect.ValueOf(valer.WrapTimeValuer(valT))
-							} else {
-								// This will probably return an error
-							}
+							foundItem.FieldValue = valer.WrapValue(srcFieldValue)
 						}
 					}
 					if err := extractStep(fieldx, tagSeparators, tags, x, vif, foundItem); err != nil {

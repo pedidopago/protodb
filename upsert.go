@@ -9,6 +9,7 @@ import (
 
 	"github.com/Masterminds/squirrel"
 	"github.com/jmoiron/sqlx"
+	"github.com/pedidopago/protodb/valer"
 )
 
 func buildOnDuplicate(cols []string) squirrel.Sqlizer {
@@ -125,7 +126,7 @@ func BuildUpsert(ctx context.Context, items interface{}, qfn func(rq squirrel.In
 		for _, v := range insColumns.Columns {
 			if v.Name != "-" && v.Name != "" {
 				td := v
-				td.FieldValue = extractFieldValue(vi, v.FieldName)
+				td.FieldValue = valer.WrapValue(extractFieldValue(vi, v.FieldName))
 				vals = append(vals, resolveValue(td))
 			}
 		}

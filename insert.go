@@ -96,7 +96,7 @@ func BuildInsert(ctx context.Context, items interface{}, qfn func(rq squirrel.In
 		for _, v := range columns.Columns {
 			if v.Name != "-" && v.Name != "" {
 				td := v
-				td.FieldValue = extractFieldValue(vi, v.FieldName)
+				td.FieldValue = valer.WrapValue(extractFieldValue(vi, v.FieldName))
 				vals = append(vals, resolveValue(td))
 			}
 		}

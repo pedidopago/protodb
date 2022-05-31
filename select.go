@@ -55,7 +55,7 @@ func (r ColumnsResult) SelectColumns(ctx context.Context) []string {
 			// add table prefix if it's just a column name
 			field = fmt.Sprintf("%s.%s", table, name)
 		}
-		if dbTag != "" && dbTag != field && !regexp.MustCompile("(?i)^.+ AS ([a-zA-Z]|[0-9]|\\_)+$").MatchString(field) {
+		if dbTag != "" && dbTag != field && !(regexp.MustCompile(`(?i)^.+ AS ([a-zA-Z]|[0-9]|_)+$`).MatchString(field)) {
 			return fmt.Sprintf("%s AS %s", field, dbTag)
 		}
 		return field

@@ -109,11 +109,24 @@ func BuildUpsert(ctx context.Context, items interface{}, qfn func(rq squirrel.In
 		}
 	}
 	rq = rq.Columns(insColNames...)
+
+	var extractFieldValue = func(v reflect.Value, fieldName string) reflect.Value {
+		return v.FieldByName(fieldName)
+	}
+	if sliceIter.Type().Elem().Kind() == reflect.Ptr {
+		extractFieldValue = func(v reflect.Value, fieldName string) reflect.Value {
+			return v.Elem().FieldByName(fieldName)
+		}
+	}
+
 	for i := 0; i < sliceIter.Len(); i++ {
+		vi := sliceIter.Index(i)
 		vals := []interface{}{}
 		for _, v := range insColumns.Columns {
 			if v.Name != "-" && v.Name != "" {
-				vals = append(vals, resolveValue(v))
+				td := v
+				td.FieldValue = extractFieldValue(vi, v.FieldName)
+				vals = append(vals, resolveValue(td))
 			}
 		}
 		rq = rq.Values(vals...)

@@ -61,31 +61,43 @@ func BuildInsert(ctx context.Context, items interface{}, qfn func(rq squirrel.In
 		rerr = errors.New("needs at least one row to insert")
 		return
 	}
+
+	// start query and insert columns
+	columns := InsertColumnScan(value)
+	if rerr = columns.Err; rerr != nil {
+		return
+	}
+	tname := columns.GetTableNameMeta(ctx)
+	if tname == "" {
+		rerr = errors.New("(insert) subtag 'table' not found")
+		return
+	}
+	rq = squirrel.Insert(tname)
+	colNames := []string{}
+	for _, v := range columns.Columns {
+		if v.Name != "-" && v.Name != "" {
+			colNames = append(colNames, v.Name)
+		}
+	}
+	rq = rq.Columns(colNames...)
+
+	var extractFieldValue = func(v reflect.Value, fieldName string) reflect.Value {
+		return v.FieldByName(fieldName)
+	}
+	if sliceIter.Type().Elem().Kind() == reflect.Ptr {
+		extractFieldValue = func(v reflect.Value, fieldName string) reflect.Value {
+			return v.Elem().FieldByName(fieldName)
+		}
+	}
+
 	for i := 0; i < sliceIter.Len(); i++ {
-		columns := InsertColumnScan(value)
-		if rerr = columns.Err; rerr != nil {
-			return
-		}
-		if i == 0 {
-			// start query and insert columns
-			tname := columns.GetTableNameMeta(ctx)
-			if tname == "" {
-				rerr = errors.New("(insert) subtag 'table' not found")
-				return
-			}
-			rq = squirrel.Insert(tname)
-			colNames := []string{}
-			for _, v := range columns.Columns {
-				if v.Name != "-" && v.Name != "" {
-					colNames = append(colNames, v.Name)
-				}
-			}
-			rq = rq.Columns(colNames...)
-		}
+		vi := sliceIter.Index(i)
 		vals := []interface{}{}
 		for _, v := range columns.Columns {
 			if v.Name != "-" && v.Name != "" {
-				vals = append(vals, resolveValue(v))
+				td := v
+				td.FieldValue = extractFieldValue(vi, v.FieldName)
+				vals = append(vals, resolveValue(td))
 			}
 		}
 		rq = rq.Values(vals...)

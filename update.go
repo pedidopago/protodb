@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 
 	"github.com/Masterminds/squirrel"
@@ -92,6 +93,24 @@ func skipUpdate(v TagData) bool {
 		return true
 	}
 	return false
+}
+
+func resolveValueMultiRowInsert(v TagData) interface{} {
+	if isNilSafe(v.FieldValue) {
+		if vs, ok := v.MetaStringCheck("nilval"); ok {
+			return vs
+		}
+		return nil
+	}
+	if v.FieldValue.IsZero() {
+		if v.MetaBool("zeronil", false) {
+			return nil
+		}
+	}
+	if skipInsertSingleRow(v) {
+		return squirrel.Expr(fmt.Sprintf("DEFAULT(%s)", v.Name))
+	}
+	return v.FieldValue.Interface()
 }
 
 func resolveValue(v TagData) interface{} {

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/pedidopago/protodb/valer"
 )
 
 var TagSeparator = ";"
@@ -53,6 +55,9 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 	var table string
 	for i := 0; i < srcn; i++ {
 		srcfield := srcType.Field(i)
+		srcFieldValue := v.Field(i)
+		// replace ''' with `
+		srcfield.Tag = reflect.StructTag(strings.Replace(string(srcfield.Tag), "'''", "`", -1))
 		skipRecursive := false
 		var recursiveIf *ConditionalContextKey
 		var foundItem *TagData
@@ -61,8 +66,6 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 			if tagSeparators != nil && tagSeparators[tag] != "" {
 				ts = tagSeparators[tag]
 			}
-			// replace ''' with `
-			tag = strings.Replace(tag, "'''", "`", -1)
 			if tt, ok := srcfield.Tag.Lookup(tag); ok {
 				tms := strings.Split(tt, ts)
 				item := TagData{
@@ -124,8 +127,8 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 						item.IsSlice = true
 					}
 				}
-				foundItem = &item
 				*x = append(*x, item)
+				foundItem = &((*x)[len(*x)-1])
 				// parts := strings.Split(tt, ",")
 				// if strings.TrimSpace(parts[0]) != "-" {}
 				break
@@ -147,11 +150,14 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 					if vif == nil {
 						vif = valrecursiveIf
 					}
-					var fieldx reflect.Value
+					var fieldx = srcFieldValue
 					if akind == reflect.Ptr && srcfield.Type.Elem().Kind() == reflect.Struct {
-						fieldx = reflect.New(srcfield.Type.Elem())
-					} else {
-						fieldx = v.Field(i)
+						if fieldx.IsNil() {
+							fieldx = reflect.New(srcfield.Type.Elem())
+						}
+						if foundItem != nil {
+							foundItem.FieldValue = valer.WrapValue(srcFieldValue)
+						}
 					}
 					if err := extractStep(fieldx, tagSeparators, tags, x, vif, foundItem); err != nil {
 						//TODO: return recursive fields error without breaking higher levels

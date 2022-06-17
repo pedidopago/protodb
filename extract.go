@@ -109,6 +109,19 @@ func extractStep(v reflect.Value, tagSeparators map[string]string, tags []string
 							case "table", "tablename":
 								item.Table = keyval[1]
 								table = keyval[1]
+							case "onzero":
+								q := keyval[1]
+								m := regexField.FindAllStringSubmatch(q, -1)
+								if len(m) > 0 {
+									for _, sm := range m {
+										if len(sm) > 1 {
+											item.OnZero.FieldsReferenced = append(item.OnZero.FieldsReferenced, sm[1])
+										}
+									}
+									item.OnZero.Expr = regexField.ReplaceAllString(q, "?")
+								} else {
+									item.OnZero.Expr = q
+								}
 							default:
 								item.Meta[keyval[0]] = keyval[1]
 							}

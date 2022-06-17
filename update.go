@@ -51,7 +51,7 @@ func UpdateContext(ctx context.Context, dbtx sqlx.ExecerContext, item interface{
 		if v.Name != "-" && v.Name != "" {
 			if _, ok := skipColumnMap[v.Name]; !ok {
 				if !skipUpdate(v) {
-					rq = rq.Set(v.Name, resolveValue(v))
+					rq = rq.Set(v.Name, resolveValue(value, v))
 				}
 			}
 		}
@@ -95,16 +95,22 @@ func skipUpdate(v TagData) bool {
 	return false
 }
 
-func resolveValueMultiRowInsert(v TagData) interface{} {
+func resolveValueMultiRowInsert(s reflect.Value, v TagData) interface{} {
 	if isNilSafe(v.FieldValue) {
 		if vs, ok := v.MetaStringCheck("nilval"); ok {
 			return vs
 		}
-		return nil
 	}
 	if v.FieldValue.IsZero() {
 		if v.MetaBool("zeronil", false) {
 			return nil
+		}
+		if q := v.OnZero.Expr; q != "" {
+			var args []interface{}
+			for _, f := range v.OnZero.FieldsReferenced {
+				args = append(args, s.FieldByName(f).Interface())
+			}
+			return squirrel.Expr(q, args...)
 		}
 	}
 	if skipInsertSingleRow(v) {
@@ -113,16 +119,22 @@ func resolveValueMultiRowInsert(v TagData) interface{} {
 	return v.FieldValue.Interface()
 }
 
-func resolveValue(v TagData) interface{} {
+func resolveValue(s reflect.Value, v TagData) interface{} {
 	if isNilSafe(v.FieldValue) {
 		if vs, ok := v.MetaStringCheck("nilval"); ok {
 			return vs
 		}
-		return nil
 	}
 	if v.FieldValue.IsZero() {
 		if v.MetaBool("zeronil", false) {
 			return nil
+		}
+		if q := v.OnZero.Expr; q != "" {
+			var args []interface{}
+			for _, f := range v.OnZero.FieldsReferenced {
+				args = append(args, s.FieldByName(f).Interface())
+			}
+			return squirrel.Expr(q, args...)
 		}
 	}
 	return v.FieldValue.Interface()

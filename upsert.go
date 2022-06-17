@@ -51,7 +51,7 @@ func BuildUpsert(ctx context.Context, items interface{}, qfn func(rq squirrel.In
 			if v.Name != "-" && v.Name != "" {
 				if !skipInsertSingleRow(v) {
 					colNames = append(colNames, v.Name)
-					vals = append(vals, resolveValue(v))
+					vals = append(vals, resolveValue(value, v))
 				}
 			}
 		}
@@ -127,7 +127,7 @@ func BuildUpsert(ctx context.Context, items interface{}, qfn func(rq squirrel.In
 			if v.Name != "-" && v.Name != "" {
 				td := v
 				td.FieldValue = valer.WrapValue(extractFieldValue(vi, v.FieldName))
-				vals = append(vals, resolveValueMultiRowInsert(td))
+				vals = append(vals, resolveValueMultiRowInsert(vi, td))
 			}
 		}
 		rq = rq.Values(vals...)

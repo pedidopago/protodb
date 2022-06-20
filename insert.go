@@ -29,6 +29,9 @@ func BuildInsert(ctx context.Context, items interface{}, qfn func(rq squirrel.In
 		return
 	}
 	if !isTypeSliceOrSlicePointer(value.Type()) {
+		if value, rerr = ensureStruct(value); rerr != nil {
+			return
+		}
 		// Insert a single row
 		columns := InsertColumnScan(value)
 		if err := columns.Err; err != nil {
@@ -63,8 +66,12 @@ func BuildInsert(ctx context.Context, items interface{}, qfn func(rq squirrel.In
 	}
 
 	// start query and insert columns
-	columns := InsertColumnScan(value)
-	if rerr = columns.Err; rerr != nil {
+	var columns ColumnsResult
+	if vElem, err := ensureStruct(sliceIter.Elem()); err != nil {
+		rerr = err
+		return
+	} else if columns = InsertColumnScan(vElem); columns.Err != nil {
+		rerr = columns.Err
 		return
 	}
 	tname := columns.GetTableNameMeta(ctx)
@@ -72,6 +79,19 @@ func BuildInsert(ctx context.Context, items interface{}, qfn func(rq squirrel.In
 		rerr = errors.New("(insert) subtag 'table' not found")
 		return
 	}
+
+	var valueAtIndex func(i int) reflect.Value
+	switch sliceIter.Type().Elem().Kind() {
+	case reflect.Ptr:
+		valueAtIndex = func(i int) reflect.Value {
+			return sliceIter.Index(i).Elem()
+		}
+	case reflect.Struct:
+		valueAtIndex = func(i int) reflect.Value {
+			return sliceIter.Index(i)
+		}
+	}
+
 	rq = squirrel.Insert(tname)
 	colNames := []string{}
 	for _, v := range columns.Columns {
@@ -81,22 +101,13 @@ func BuildInsert(ctx context.Context, items interface{}, qfn func(rq squirrel.In
 	}
 	rq = rq.Columns(colNames...)
 
-	var extractFieldValue = func(v reflect.Value, fieldName string) reflect.Value {
-		return v.FieldByName(fieldName)
-	}
-	if sliceIter.Type().Elem().Kind() == reflect.Ptr {
-		extractFieldValue = func(v reflect.Value, fieldName string) reflect.Value {
-			return v.Elem().FieldByName(fieldName)
-		}
-	}
-
 	for i := 0; i < sliceIter.Len(); i++ {
-		vi := sliceIter.Index(i)
+		vi := valueAtIndex(i)
 		vals := []interface{}{}
 		for _, v := range columns.Columns {
 			if v.Name != "-" && v.Name != "" {
 				td := v
-				td.FieldValue = valer.WrapValue(extractFieldValue(vi, v.FieldName))
+				td.FieldValue = valer.WrapValue(vi.FieldByName(v.FieldName))
 				vals = append(vals, resolveValueMultiRowInsert(vi, td))
 			}
 		}

@@ -378,6 +378,23 @@ func errIfNotAPointerOrNil(value reflect.Value) error {
 	return nil
 }
 
+func ensureStruct(value reflect.Value) (rv reflect.Value, rerr error) {
+	rerr = errors.New("element must be a struct or pointer to a struct")
+	switch value.Kind() {
+	case reflect.Pointer:
+		vElem := value.Elem()
+		if vElem.Kind() != reflect.Struct {
+			return
+		}
+		rv = vElem
+	case reflect.Struct:
+		rv = value
+	default:
+		return
+	}
+	return rv, nil
+}
+
 // BuildSelect executes a SelectColumnScan on dest (with reflection) to determine which table, columns and joins are used
 // to build the query. Use qfn to apply where filters (and other query modifiers).
 func BuildSelect(ctx context.Context, dest interface{}, qfn func(rq squirrel.SelectBuilder) squirrel.SelectBuilder) (q string, args []interface{}, err error) {

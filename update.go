@@ -37,6 +37,10 @@ func UpdateContext(ctx context.Context, dbtx sqlx.ExecerContext, item interface{
 	if isTypeSliceOrSlicePointer(value.Type()) {
 		return nil, errors.New("UpdateContext: cannot update a slice or a slice pointer")
 	}
+	var err error
+	if value, err = ensureStruct(value); err != nil {
+		return nil, err
+	}
 	// Update a single row
 	columns := UpdateColumnScan(value)
 	if err := columns.Err; err != nil {
@@ -110,7 +114,7 @@ func resolveValueMultiRowInsert(s reflect.Value, v TagData) interface{} {
 			for _, f := range v.OnZero.FieldsReferenced {
 				args = append(args, s.FieldByName(f).Interface())
 			}
-			return squirrel.Expr(q, args...)
+			return squirrel.Expr("("+q+")", args...)
 		}
 	}
 	if skipInsertSingleRow(v) {
@@ -134,7 +138,7 @@ func resolveValue(s reflect.Value, v TagData) interface{} {
 			for _, f := range v.OnZero.FieldsReferenced {
 				args = append(args, s.FieldByName(f).Interface())
 			}
-			return squirrel.Expr(q, args...)
+			return squirrel.Expr("("+q+")", args...)
 		}
 	}
 	return v.FieldValue.Interface()

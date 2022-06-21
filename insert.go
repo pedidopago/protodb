@@ -67,7 +67,7 @@ func BuildInsert(ctx context.Context, items interface{}, qfn func(rq squirrel.In
 
 	// start query and insert columns
 	var columns ColumnsResult
-	if vElem, err := ensureStruct(sliceIter.Elem()); err != nil {
+	if vElem, err := ensureStruct(sliceIter.Index(0)); err != nil {
 		rerr = err
 		return
 	} else if columns = InsertColumnScan(vElem); columns.Err != nil {

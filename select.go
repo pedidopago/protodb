@@ -381,7 +381,7 @@ func errIfNotAPointerOrNil(value reflect.Value) error {
 func ensureStruct(value reflect.Value) (rv reflect.Value, rerr error) {
 	rerr = errors.New("element must be a struct or pointer to a struct")
 	switch value.Kind() {
-	case reflect.Pointer:
+	case reflect.Ptr:
 		vElem := value.Elem()
 		if vElem.Kind() != reflect.Struct {
 			return

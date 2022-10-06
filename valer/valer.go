@@ -63,7 +63,7 @@ func (w Int32ValerWrapper) Value() (v driver.Value, err error) {
 		return
 	}
 	if p := w.Valer.Val(); p != nil {
-		v = *p
+		v = int64(*p)
 	}
 	return
 }
